@@ -116,7 +116,6 @@ namespace renderer::backend
 
         std::vector<GltfImage> images;
         std::vector<GltfTexture> textures;
-        std::vector<Material> materials;
         std::vector<GltfNode*> nodes;
         std::vector<vk::DescriptorSet> materialDescriptors;
 

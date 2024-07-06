@@ -2,7 +2,7 @@
 
 #extension GL_GOOGLE_include_directive : require
 
-#include "uniforms.glsl"
+#include "common.glsl"
 
 uint MaterialFeatures_ColorTexture     = 1 << 0;
 uint MaterialFeatures_NormalTexture    = 1 << 1;
@@ -26,6 +26,10 @@ layout (location = 3) in vec4 vPosition;
 layout (location = 0) out vec4 frag_color;
 
 void main() {
-    frag_color = vec4(texture(diffuseTexture, vTexcoord0).rgb, 1.0);
+    Material material = materialBuffer.materials[materialIndex];
+
+    frag_color = texture(diffuseTexture, vTexcoord0) * material.baseColorFactor;
+
+    // frag_color = vec4(texture(diffuseTexture, vTexcoord0).rgb, 1.0);
 }
 

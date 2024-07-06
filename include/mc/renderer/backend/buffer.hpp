@@ -56,6 +56,8 @@ namespace renderer::backend
 
         [[nodiscard]] auto getMappedData() const -> void* { return m_allocInfo.pMappedData; }
 
+        [[nodiscard]] auto getSize() const -> size_t { return m_allocInfo.size; }
+
     private:
         Allocator* m_allocator { nullptr };
 

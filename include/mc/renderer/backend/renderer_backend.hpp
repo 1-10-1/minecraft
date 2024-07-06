@@ -68,6 +68,8 @@ namespace renderer::backend
         {
             float quadratic, linear, constant;
         } attenuation;
+
+        float pad3;
     };
 
     class RendererBackend

@@ -1,10 +1,8 @@
 #version 460
 
-#extension GL_EXT_buffer_reference : require
 #extension GL_GOOGLE_include_directive : require
-#extension GL_EXT_scalar_block_layout : require
 
-#include "uniforms.glsl"
+#include "common.glsl"
 
 uint MaterialFeatures_ColorTexture     = 1 << 0;
 uint MaterialFeatures_NormalTexture    = 1 << 1;
@@ -13,45 +11,6 @@ uint MaterialFeatures_OcclusionTexture = 1 << 3;
 uint MaterialFeatures_EmissiveTexture =  1 << 4;
 uint MaterialFeatures_TangentVertexAttribute = 1 << 5;
 uint MaterialFeatures_TexcoordVertexAttribute = 1 << 6;
-
-struct Vertex {
-    vec3 position;
-    float uv_x;
-    vec3 normal;
-    float uv_y;
-    vec4 tangent;
-};
-
-struct Material {
-    vec4 baseColorFactor;
-
-    vec3 emissiveFactor;
-    float metallicFactor;
-
-    float roughnessFactor;
-    float occlusionFactor;
-    uint flags;
-    uint pad;
-};
-
-layout(buffer_reference, std430) readonly buffer VertexBuffer {
-	Vertex vertices[];
-};
-
-layout(buffer_reference, std430) readonly buffer MaterialBuffer {
-	Material materials[];
-};
-
-layout(push_constant) uniform PushConstants
-{
-    mat4 model;
-
-    // TODO(aether) these can definitely both be constants
-    VertexBuffer vertexBuffer;
-    MaterialBuffer materialBuffer;
-
-    uint materialIndex;
-};
 
 layout (location = 0) out vec2 vTexcoord0;
 layout (location = 1) out vec3 vNormal;

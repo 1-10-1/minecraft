@@ -23,7 +23,7 @@ namespace renderer::backend
     {
     public:
         auto setPushConstantSettings(uint32_t size,
-                                     vk::ShaderStageFlagBits shaderStage) -> PipelineLayoutConfig&;
+                                     vk::ShaderStageFlags shaderStage) -> PipelineLayoutConfig&;
 
         auto
         setDescriptorSetLayouts(std::vector<vk::DescriptorSetLayout> const& layout) -> PipelineLayoutConfig&;

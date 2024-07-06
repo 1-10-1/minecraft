@@ -126,10 +126,11 @@ namespace renderer::backend
 
         initDescriptors();
 
-        auto pipelineLayoutConfig =
-            PipelineLayoutConfig()
-                .setDescriptorSetLayouts({ m_sceneDataDescriptorLayout })
-                .setPushConstantSettings(sizeof(GPUDrawPushConstants), vk::ShaderStageFlagBits::eVertex);
+        auto pipelineLayoutConfig = PipelineLayoutConfig()
+                                        .setDescriptorSetLayouts({ m_sceneDataDescriptorLayout })
+                                        .setPushConstantSettings(sizeof(GPUDrawPushConstants),
+                                                                 vk::ShaderStageFlagBits::eVertex |
+                                                                     vk::ShaderStageFlagBits::eFragment);
 
         m_texturelessPipelineLayout = PipelineLayout(m_device, pipelineLayoutConfig);
 

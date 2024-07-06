@@ -16,7 +16,7 @@ namespace vi = std::ranges::views;
 
 namespace renderer::backend
 {
-    auto PipelineLayoutConfig::setPushConstantSettings(uint32_t size, vk::ShaderStageFlagBits shaderStage)
+    auto PipelineLayoutConfig::setPushConstantSettings(uint32_t size, vk::ShaderStageFlags shaderStage)
         -> PipelineLayoutConfig&
     {
         pushConstants = {
