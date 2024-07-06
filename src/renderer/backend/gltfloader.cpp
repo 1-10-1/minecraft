@@ -44,18 +44,16 @@ namespace renderer::backend
         std::vector<uint32_t> indexBuffer;
         std::vector<Vertex> vertexBuffer;
 
-        loadImages(glTFInput);
-        loadMaterials(glTFInput);
-
-        // TODO(aether) this is a guess, insanely overkill if I had to guess
-        std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> sizes = {
+        std::vector<DescriptorAllocator::PoolSizeRatio> sizes = {
             { vk::DescriptorType::eCombinedImageSampler, 5 },
-            { vk::DescriptorType::eUniformBuffer,        1 },
         };
 
-        m_sceneResources.descriptorAllocator.init(m_device, glTFInput.materials.size(), sizes);
+        m_sceneResources.descriptorAllocator =
+            DescriptorAllocator(m_device, glTFInput.materials.size(), sizes);
 
+        loadImages(glTFInput);
         loadTextures(glTFInput);
+        loadMaterials(glTFInput);
 
         tinygltf::Scene const& scene = glTFInput.scenes[0];
 
@@ -181,10 +179,16 @@ namespace renderer::backend
     void RendererBackend::loadMaterials(tinygltf::Model& input)
     {
         m_sceneResources.materials.resize(input.materials.size());
+        m_sceneResources.materialDescriptors.resize(input.materials.size());
 
         for (size_t i = 0; i < input.materials.size(); i++)
         {
             tinygltf::Material glTFMaterial = input.materials[i];
+
+            vk::DescriptorSet descriptorSet =
+                m_sceneResources.descriptorAllocator.allocate(m_device, m_materialDescriptorLayout);
+
+            DescriptorWriter writer;
 
             if (glTFMaterial.values.find("baseColorFactor") != glTFMaterial.values.end())
             {
@@ -192,11 +196,39 @@ namespace renderer::backend
                     glm::make_vec4(glTFMaterial.values["baseColorFactor"].ColorFactor().data());
             }
 
-            if (glTFMaterial.values.find("baseColorTexture") != glTFMaterial.values.end())
+            for (auto const& [i, pair] : vi::enumerate(std::array {
+                     std::pair { "baseColorTexture",         MaterialFeatures::ColorTexture     },
+                     std::pair { "metallicRoughnessTexture", MaterialFeatures::RoughnessTexture },
+                     std::pair { "occlusionTexture",         MaterialFeatures::OcclusionTexture },
+                     std::pair { "emissiveTexture",          MaterialFeatures::EmissiveTexture  },
+                     std::pair { "normalTexture",            MaterialFeatures::NormalTexture    },
+            }))
             {
-                m_sceneResources.materials[i].baseColorTextureIndex =
-                    glTFMaterial.values["baseColorTexture"].TextureIndex();
+                char const* name                          = pair.first;
+                [[maybe_unused]] MaterialFeatures feature = pair.second;
+
+                if (glTFMaterial.values.find(name) != glTFMaterial.values.end())
+                {
+                    writer.write_image(i,
+                                       m_sceneResources.images[glTFMaterial.values[name].TextureIndex()]
+                                           .texture.getImageView(),
+                                       m_dummySampler,
+                                       vk::ImageLayout::eShaderReadOnlyOptimal,
+                                       vk::DescriptorType::eCombinedImageSampler);
+                }
+                else
+                {
+                    writer.write_image(i,
+                                       m_dummyTexture.getImageView(),
+                                       m_dummySampler,
+                                       vk::ImageLayout::eShaderReadOnlyOptimal,
+                                       vk::DescriptorType::eCombinedImageSampler);
+                }
             }
+
+            writer.update_set(m_device, descriptorSet);
+
+            m_sceneResources.materialDescriptors[i] = descriptorSet;
         }
     };
 
@@ -360,26 +392,11 @@ namespace renderer::backend
                     }
                 }
 
-                vk::DescriptorSet descriptorSet =
-                    m_sceneResources.descriptorAllocator.allocate(m_device, m_materialDescriptorLayout);
-
-                DescriptorWriter writer;
-
-                writer.write_image(
-                    0,
-                    m_sceneResources
-                        .images[m_sceneResources.materials[glTFPrimitive.material].baseColorTextureIndex]
-                        .texture.getImageView(),
-                    m_dummySampler,
-                    vk::ImageLayout::eShaderReadOnlyOptimal,
-                    vk::DescriptorType::eCombinedImageSampler);
-
-                writer.update_set(m_device, descriptorSet);
-
-                node->mesh.primitives.push_back({ .firstIndex    = firstIndex,
-                                                  .indexCount    = indexCount,
-                                                  .materialIndex = glTFPrimitive.material,
-                                                  .descriptorSet = descriptorSet });
+                node->mesh.primitives.push_back({
+                    .firstIndex    = firstIndex,
+                    .indexCount    = indexCount,
+                    .materialIndex = glTFPrimitive.material,
+                });
             }
         }
 
@@ -411,29 +428,32 @@ namespace renderer::backend
                 currentParent = currentParent->parent;
             }
 
-            GPUDrawPushConstants pushConstants { .transform    = nodeTransform,
-                                                 .vertexBuffer = m_device->getBufferAddress(
-                                                     vk::BufferDeviceAddressInfo().setBuffer(
-                                                         m_sceneResources.vertexBuffer)),
-                                                 .vertexOffset = 0 };
-
-            commandBuffer.pushConstants(pipelineLayout,
-                                        vk::ShaderStageFlagBits::eVertex,
-                                        0,
-                                        sizeof(GPUDrawPushConstants),
-                                        &pushConstants);
-
             for (Primitive& primitive : node->mesh.primitives)
             {
+                GPUDrawPushConstants pushConstants {
+                    .model        = nodeTransform,
+                    .vertexBuffer = m_device->getBufferAddress(
+                        vk::BufferDeviceAddressInfo().setBuffer(m_sceneResources.vertexBuffer)),
+                    .materialIndex = static_cast<uint32_t>(primitive.materialIndex),
+                };
+
+                commandBuffer.pushConstants(pipelineLayout,
+                                            vk::ShaderStageFlagBits::eVertex,
+                                            0,
+                                            sizeof(GPUDrawPushConstants),
+                                            &pushConstants);
+
                 if (primitive.indexCount > 0)
                 {
                     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_texturedPipeline);
 
-                    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-                                                     m_texturedPipelineLayout,
-                                                     0,
-                                                     { m_sceneDataDescriptors, primitive.descriptorSet },
-                                                     {});
+                    commandBuffer.bindDescriptorSets(
+                        vk::PipelineBindPoint::eGraphics,
+                        m_texturedPipelineLayout,
+                        0,
+                        { m_sceneDataDescriptors,
+                          m_sceneResources.materialDescriptors[primitive.materialIndex] },
+                        {});
 
                     commandBuffer.drawIndexed(primitive.indexCount, 1, primitive.firstIndex, 0, 0);
                 }

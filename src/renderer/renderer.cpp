@@ -34,12 +34,6 @@ namespace renderer
     {
         ZoneScopedN("Frontend update");
 
-        logger::info("Position: {}, {}, {} at pitch {} and yaw {}",
-                     m_camera.getPosition().x,
-                     m_camera.getPosition().y,
-                     m_camera.getPosition().z,
-                     m_camera.getPitch(),
-                     m_camera.getYaw());
         m_backend.update(m_camera.getPosition(), m_camera.getView(), m_camera.getProj());
     }
 

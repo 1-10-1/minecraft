@@ -26,10 +26,12 @@ namespace renderer::backend
 {
     struct GPUDrawPushConstants
     {
-        glm::mat4 transform { glm::identity<glm::mat4>() };
+        glm::mat4 model { glm::identity<glm::mat4>() };
 
         vk::DeviceAddress vertexBuffer {};
-        uint32_t vertexOffset { 0 };
+        vk::DeviceAddress materialBuffer {};
+
+        uint32_t materialIndex { 0 };
     };
 
     struct alignas(16) GPUSceneData

@@ -22,31 +22,35 @@ struct Vertex {
     vec4 tangent;
 };
 
-// NOTE(aether) potential performance hit
+struct Material {
+    vec4 baseColorFactor;
+
+    vec3 emissiveFactor;
+    float metallicFactor;
+
+    float roughnessFactor;
+    float occlusionFactor;
+    uint flags;
+    uint pad;
+};
+
 layout(buffer_reference, std430) readonly buffer VertexBuffer {
 	Vertex vertices[];
 };
 
-layout(push_constant) uniform PushConstants
-{
-    mat4 constmodel;
-
-    VertexBuffer vertexBuffer;
-    uint vertexOffset;
+layout(buffer_reference, std430) readonly buffer MaterialBuffer {
+	Material materials[];
 };
 
-layout(std140, set = 1, binding = 5) uniform MaterialConstant {
-    vec4 base_color_factor;
+layout(push_constant) uniform PushConstants
+{
     mat4 model;
-    mat4 model_inv;
 
-    vec3  emissive_factor;
-    float metallic_factor;
+    // TODO(aether) these can definitely both be constants
+    VertexBuffer vertexBuffer;
+    MaterialBuffer materialBuffer;
 
-    float roughness_factor;
-    float occlusion_factor;
-    uint  flags;
-    uint  pad;
+    uint materialIndex;
 };
 
 layout (location = 0) out vec2 vTexcoord0;
@@ -55,12 +59,13 @@ layout (location = 2) out vec4 vTangent;
 layout (location = 3) out vec4 vPosition;
 
 void main() {
-    Vertex vertex = vertexBuffer.vertices[vertexOffset + gl_VertexIndex];
+    Vertex vertex = vertexBuffer.vertices[gl_VertexIndex];
 
-    gl_Position = sceneData.viewProj * constmodel * vec4(vertex.position, 1.0);
-    vPosition = constmodel * vec4(vertex.position, 1.0);
+    gl_Position = sceneData.viewProj * model * vec4(vertex.position, 1.0);
+    vPosition = model * vec4(vertex.position, 1.0);
 
     vTexcoord0 = vec2(vertex.uv_x, vertex.uv_y);
+
     // if ( ( flags & MaterialFeatures_TexcoordVertexAttribute ) != 0 ) {
     //     vTexcoord0 = texcoord;
     // }

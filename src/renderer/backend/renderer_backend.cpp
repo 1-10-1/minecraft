@@ -237,7 +237,6 @@ namespace renderer::backend
                     .addBinding(2, vk::DescriptorType::eCombinedImageSampler)  // occlusion
                     .addBinding(3, vk::DescriptorType::eCombinedImageSampler)  // emissive
                     .addBinding(4, vk::DescriptorType::eCombinedImageSampler)  // normal
-                    .addBinding(5, vk::DescriptorType::eUniformBuffer)         // material constants
                     .build(m_device, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
         }
 
