@@ -8,6 +8,47 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <vulkan/vulkan_structs.hpp>
 
+namespace
+{
+    vk::SamplerAddressMode getVkWrapMode(int32_t wrapMode)
+    {
+        switch (wrapMode)
+        {
+            case -1:
+            case 10497:
+                return vk::SamplerAddressMode::eRepeat;
+            case 33071:
+                return vk::SamplerAddressMode::eClampToEdge;
+            case 33648:
+                return vk::SamplerAddressMode::eMirroredRepeat;
+        }
+
+        MC_ASSERT_MSG(false, "Unknown wrap mode: ", wrapMode);
+    }
+
+    vk::Filter getVkFilterMode(int32_t filterMode)
+    {
+        switch (filterMode)
+        {
+            case -1:
+            case 9728:
+                return vk::Filter::eNearest;
+            case 9729:
+                return vk::Filter::eNearest;
+            case 9984:
+                return vk::Filter::eNearest;
+            case 9985:
+                return vk::Filter::eNearest;
+            case 9986:
+                return vk::Filter::eLinear;
+            case 9987:
+                return vk::Filter::eLinear;
+        }
+
+        MC_ASSERT_MSG(false, "Unknown filter mode: ", filterMode);
+    }
+}  // namespace
+
 namespace renderer::backend
 {
     namespace fs = std::filesystem;
@@ -19,11 +60,11 @@ namespace renderer::backend
         fs::path prevPath = fs::current_path();
         fs::current_path(gltfDir);
         fs::path path = fs::current_path() / "Cube.gltf";
-#elif 0
-        fs::path gltfDir  = "../../khrSampleModels/2.0/AntiqueCamera/glTF";
+#elif 1
+        fs::path gltfDir  = "../../khrSampleModels/2.0/DragonAttenuation/glTF";
         fs::path prevPath = fs::current_path();
         fs::current_path(gltfDir);
-        fs::path path = fs::current_path() / "AntiqueCamera.gltf";
+        fs::path path = fs::current_path() / "DragonAttenuation.gltf";
 
 #else
         fs::path gltfDir  = "../../khrSampleModels/2.0/Sponza/glTF";
@@ -46,6 +87,7 @@ namespace renderer::backend
 
         loadImages(glTFInput);
         loadTextures(glTFInput);
+        loadSamplers(glTFInput);
         loadMaterials(glTFInput);
 
         tinygltf::Scene const& scene = glTFInput.scenes[0];
@@ -163,13 +205,41 @@ namespace renderer::backend
         }
     };
 
+    void RendererBackend::loadSamplers(tinygltf::Model& input)
+    {
+        m_sceneResources.samplers.reserve(input.samplers.size());
+
+        for (tinygltf::Sampler& sampler : input.samplers)
+        {
+            m_sceneResources.samplers.push_back(
+                m_device->createSampler({
+                    .magFilter               = getVkFilterMode(sampler.magFilter),
+                    .minFilter               = getVkFilterMode(sampler.minFilter),
+                    .mipmapMode              = vk::SamplerMipmapMode::eLinear,
+                    .addressModeU            = getVkWrapMode(sampler.wrapS),
+                    .addressModeV            = getVkWrapMode(sampler.wrapT),
+                    .addressModeW            = getVkWrapMode(sampler.wrapT),
+                    .mipLodBias              = 0.0f,
+                    .anisotropyEnable        = false,
+                    .maxAnisotropy           = m_device.getDeviceProperties().limits.maxSamplerAnisotropy,
+                    .compareEnable           = false,
+                    .minLod                  = 0.0f,
+                    .maxLod                  = 1,
+                    .borderColor             = vk::BorderColor::eIntOpaqueBlack,
+                    .unnormalizedCoordinates = false,
+                }) >>
+                ResultChecker());
+        }
+    }
+
     void RendererBackend::loadTextures(tinygltf::Model& input)
     {
         m_sceneResources.textures.resize(input.textures.size());
 
         for (size_t i = 0; i < input.textures.size(); i++)
         {
-            m_sceneResources.textures[i].imageIndex = input.textures[i].source;
+            m_sceneResources.textures[i].imageIndex   = input.textures[i].source;
+            m_sceneResources.textures[i].samplerIndex = input.textures[i].sampler;
         }
     };
 
@@ -201,6 +271,8 @@ namespace renderer::backend
                     0,
                     m_sceneResources.hostMaterialBuffer.getSize());
 
+        std::vector<int> b {};
+
         for (size_t i = 0; i < input.materials.size(); i++)
         {
             tinygltf::Material glTFMaterial = input.materials[i];
@@ -218,8 +290,12 @@ namespace renderer::backend
                 material.baseColorFactor =
                     glm::make_vec4(glTFMaterial.values["baseColorFactor"].ColorFactor().data());
             }
+            else
+            {
+                material.baseColorFactor = { 1.0, 1.0, 1.0, 1.0 };
+            }
 
-            for (auto const& [i, pair] : vi::enumerate(std::array {
+            for (auto const& [binding, pair] : vi::enumerate(std::array {
                      std::pair { "baseColorTexture",         MaterialFeatures::ColorTexture     },
                      std::pair { "metallicRoughnessTexture", MaterialFeatures::RoughnessTexture },
                      std::pair { "occlusionTexture",         MaterialFeatures::OcclusionTexture },
@@ -232,17 +308,37 @@ namespace renderer::backend
 
                 if (glTFMaterial.values.find(name) != glTFMaterial.values.end())
                 {
-                    writer.write_image(i,
-                                       m_sceneResources.images[glTFMaterial.values[name].TextureIndex()]
-                                           .texture.getImageView(),
-                                       // TODO(aether) using the dummy sampler rn
-                                       m_dummySampler,
-                                       vk::ImageLayout::eShaderReadOnlyOptimal,
-                                       vk::DescriptorType::eCombinedImageSampler);
+                    writer.write_image(
+                        binding,
+                        m_sceneResources.images[glTFMaterial.values[name].TextureIndex()]
+                            .texture.getImageView(),
+                        m_sceneResources
+                            .samplers[m_sceneResources
+                                          .textures[glTFMaterial.additionalValues[name].TextureIndex()]
+                                          .samplerIndex],
+                        vk::ImageLayout::eShaderReadOnlyOptimal,
+                        vk::DescriptorType::eCombinedImageSampler);
+
+                    material.flags |= std::to_underlying(feature);
+                }
+                else if (glTFMaterial.additionalValues.find(name) != glTFMaterial.additionalValues.end())
+                {
+                    writer.write_image(
+                        binding,
+                        m_sceneResources.images[glTFMaterial.additionalValues[name].TextureIndex()]
+                            .texture.getImageView(),
+                        m_sceneResources
+                            .samplers[m_sceneResources
+                                          .textures[glTFMaterial.additionalValues[name].TextureIndex()]
+                                          .samplerIndex],
+                        vk::ImageLayout::eShaderReadOnlyOptimal,
+                        vk::DescriptorType::eCombinedImageSampler);
+
+                    material.flags |= std::to_underlying(feature);
                 }
                 else
                 {
-                    writer.write_image(i,
+                    writer.write_image(binding,
                                        m_dummyTexture.getImageView(),
                                        m_dummySampler,
                                        vk::ImageLayout::eShaderReadOnlyOptimal,
@@ -309,6 +405,9 @@ namespace renderer::backend
             {
                 tinygltf::Primitive const& glTFPrimitive = mesh.primitives[i];
 
+                Material& material = static_cast<Material*>(
+                    m_sceneResources.hostMaterialBuffer.getMappedData())[glTFPrimitive.material];
+
                 uint32_t firstIndex  = static_cast<uint32_t>(indexBuffer.size());
                 uint32_t vertexStart = static_cast<uint32_t>(vertexBuffer.size());
                 uint32_t indexCount  = 0;
@@ -317,6 +416,7 @@ namespace renderer::backend
                     float const* positionBuffer  = nullptr;
                     float const* normalsBuffer   = nullptr;
                     float const* texCoordsBuffer = nullptr;
+                    float const* tangentsBuffer  = nullptr;
                     size_t vertexCount           = 0;
 
                     // Get buffer data for vertex positions
@@ -349,6 +449,19 @@ namespace renderer::backend
                         tinygltf::BufferView const& view = input.bufferViews[accessor.bufferView];
                         texCoordsBuffer                  = reinterpret_cast<float const*>(
                             &(input.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
+
+                        material.flags |= std::to_underlying(MaterialFeatures::TexcoordVertexAttribute);
+                    }
+
+                    if (glTFPrimitive.attributes.find("TANGENT") != glTFPrimitive.attributes.end())
+                    {
+                        tinygltf::Accessor const& accessor =
+                            input.accessors[glTFPrimitive.attributes.find("TANGENT")->second];
+                        tinygltf::BufferView const& view = input.bufferViews[accessor.bufferView];
+                        tangentsBuffer                   = reinterpret_cast<float const*>(
+                            &(input.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
+
+                        material.flags |= std::to_underlying(MaterialFeatures::TangentVertexAttribute);
                     }
 
                     // Append data to model's vertex buffer
@@ -358,6 +471,7 @@ namespace renderer::backend
                         vert.position = glm::make_vec3(&positionBuffer[v * 3]);
                         vert.normal   = glm::normalize(glm::vec3(
                             normalsBuffer ? glm::make_vec3(&normalsBuffer[v * 3]) : glm::vec3(0.0f)));
+                        vert.tangent = tangentsBuffer ? glm::make_vec4(&tangentsBuffer[v * 4]) : glm::vec4(0);
 
                         if (texCoordsBuffer)
                         {
@@ -457,12 +571,11 @@ namespace renderer::backend
                     return;
                 }
 
+                m_stats.drawcall_count++;
+                m_stats.triangle_count += primitive.indexCount / 3;
+
                 GPUDrawPushConstants pushConstants {
-                    .model        = nodeTransform,
-                    .vertexBuffer = m_device->getBufferAddress(
-                        vk::BufferDeviceAddressInfo().setBuffer(m_sceneResources.vertexBuffer)),
-                    .materialBuffer = m_device->getBufferAddress(
-                        vk::BufferDeviceAddressInfo().setBuffer(m_sceneResources.materialBuffer)),
+                    .model         = nodeTransform,
                     .materialIndex = static_cast<uint32_t>(primitive.materialIndex),
                 };
 
@@ -482,7 +595,15 @@ namespace renderer::backend
                     { m_sceneDataDescriptors, m_sceneResources.materialDescriptors[primitive.materialIndex] },
                     {});
 
-                commandBuffer.drawIndexed(primitive.indexCount, 1, primitive.firstIndex, 0, 0);
+                {
+#if PROFILED
+                    auto& tracyCtx = m_frameResources[m_currentFrame].tracyContext;
+#endif
+
+                    TracyVkZone(tracyCtx, commandBuffer, "draw call");
+
+                    commandBuffer.drawIndexed(primitive.indexCount, 1, primitive.firstIndex, 0, 0);
+                }
             }
         }
         for (auto& child : node->children)

@@ -26,10 +26,14 @@ layout (location = 3) in vec4 vPosition;
 layout (location = 0) out vec4 frag_color;
 
 void main() {
-    Material material = materialBuffer.materials[materialIndex];
+    Material material = sceneData.materialBuffer.materials[materialIndex];
 
-    frag_color = texture(diffuseTexture, vTexcoord0) * material.baseColorFactor;
+    frag_color = vec4(0, 0, 0, 0);
 
-    // frag_color = vec4(texture(diffuseTexture, vTexcoord0).rgb, 1.0);
+    if ((material.flags & MaterialFeatures_ColorTexture) != 0) {
+        frag_color += texture(diffuseTexture, vTexcoord0) * material.baseColorFactor;
+    } else {
+        frag_color += texture(diffuseTexture, vTexcoord0);
+    }
 }
 

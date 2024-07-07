@@ -13,8 +13,8 @@ namespace vi = std::ranges::views;
 
 namespace renderer::backend
 {
-    auto DescriptorLayoutBuilder::build(vk::raii::Device const& device, vk::ShaderStageFlags shaderStages)
-        -> vk::raii::DescriptorSetLayout
+    auto DescriptorLayoutBuilder::build(vk::raii::Device const& device,
+                                        vk::ShaderStageFlags shaderStages) -> vk::raii::DescriptorSetLayout
     {
         for (auto& binding : bindings)
         {
@@ -105,10 +105,10 @@ namespace renderer::backend
         return newPool;
     }
 
-    auto DescriptorAllocatorGrowable::create_pool(vk::raii::Device const& device,
-                                                  uint32_t setCount,
-                                                  std::span<PoolSizeRatio> poolRatios)
-        -> vk::raii::DescriptorPool
+    auto
+    DescriptorAllocatorGrowable::create_pool(vk::raii::Device const& device,
+                                             uint32_t setCount,
+                                             std::span<PoolSizeRatio> poolRatios) -> vk::raii::DescriptorPool
     {
         std::vector<vk::DescriptorPoolSize> poolSizes(poolRatios.size());
 
@@ -162,9 +162,9 @@ namespace renderer::backend
         fullPools.clear();
     }
 
-    auto DescriptorAllocatorGrowable::allocate(vk::raii::Device const& device,
-                                               vk::raii::DescriptorSetLayout const& layout)
-        -> vk::DescriptorSet
+    auto
+    DescriptorAllocatorGrowable::allocate(vk::raii::Device const& device,
+                                          vk::raii::DescriptorSetLayout const& layout) -> vk::DescriptorSet
     {
         // get or create a pool to allocate from
         vk::raii::DescriptorPool poolToUse = get_pool(device);

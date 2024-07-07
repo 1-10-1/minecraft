@@ -36,11 +36,6 @@ layout(buffer_reference, std430) readonly buffer MaterialBuffer {
 layout(push_constant) uniform PushConstants
 {
     mat4 model;
-
-    // TODO(aether) these can definitely both be constants
-    VertexBuffer vertexBuffer;
-    MaterialBuffer materialBuffer;
-
     uint materialIndex;
 };
 
@@ -52,6 +47,8 @@ layout(set = 0, binding = 0) uniform SceneData {
     vec3 cameraPos;
     float pad1;
     vec3 sunlightDirection;
+    VertexBuffer vertexBuffer;
+    MaterialBuffer materialBuffer;
 } sceneData;
 
 layout(set = 0, binding = 1) uniform PointLight {

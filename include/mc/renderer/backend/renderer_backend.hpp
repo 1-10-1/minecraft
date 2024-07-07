@@ -28,9 +28,6 @@ namespace renderer::backend
     {
         glm::mat4 model { glm::identity<glm::mat4>() };
 
-        vk::DeviceAddress vertexBuffer {};
-        vk::DeviceAddress materialBuffer {};
-
         uint32_t materialIndex { 0 };
     };
 
@@ -43,6 +40,9 @@ namespace renderer::backend
         glm::vec3 cameraPos;
         float pad;
         glm::vec3 sunlightDirection;
+
+        vk::DeviceAddress vertexBuffer {};
+        vk::DeviceAddress materialBuffer {};
     };
 
     struct FrameResources
@@ -120,6 +120,8 @@ namespace renderer::backend
 
         void loadMaterials(tinygltf::Model& input);
 
+        void loadSamplers(tinygltf::Model& input);
+
         void loadNode(tinygltf::Node const& inputNode,
                       tinygltf::Model const& input,
                       GltfNode* parent,
@@ -153,7 +155,6 @@ namespace renderer::backend
         PipelineLayout m_texturedPipelineLayout, m_texturelessPipelineLayout;
         GraphicsPipeline m_texturedPipeline, m_texturelessPipeline;
 
-        GPUSceneData m_sceneData {};
         GPUBuffer m_gpuSceneDataBuffer, m_lightDataBuffer;
 
         SceneResources m_sceneResources {};

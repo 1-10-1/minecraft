@@ -83,31 +83,46 @@ namespace renderer::backend
     {
         initImgui(window.getHandle());
 
-        // Create dummy samplers
-
         m_dummySampler = m_device->createSampler({
-                             .magFilter        = vk::Filter::eNearest,
-                             .minFilter        = vk::Filter::eNearest,
-                             .mipmapMode       = vk::SamplerMipmapMode::eLinear,
-                             .addressModeU     = vk::SamplerAddressMode::eRepeat,
-                             .addressModeV     = vk::SamplerAddressMode::eRepeat,
-                             .addressModeW     = vk::SamplerAddressMode::eRepeat,
-                             .mipLodBias       = 0.0f,
-                             .anisotropyEnable = false,
-                             .maxAnisotropy    = m_device.getDeviceProperties().limits.maxSamplerAnisotropy,
-                             .compareEnable    = false,
-                             .minLod           = 0.0f,
-                             .maxLod           = 1,
-                             .borderColor      = vk::BorderColor::eIntOpaqueBlack,
+                             .magFilter               = vk::Filter::eNearest,
+                             .minFilter               = vk::Filter::eNearest,
+                             .mipmapMode              = vk::SamplerMipmapMode::eLinear,
+                             .addressModeU            = vk::SamplerAddressMode::eRepeat,
+                             .addressModeV            = vk::SamplerAddressMode::eRepeat,
+                             .addressModeW            = vk::SamplerAddressMode::eRepeat,
+                             .mipLodBias              = 0.0f,
+                             .anisotropyEnable        = false,
+                             .maxAnisotropy           = 0,
+                             .compareEnable           = false,
+                             .minLod                  = 0.0f,
+                             .maxLod                  = 1,
+                             .borderColor             = vk::BorderColor::eIntOpaqueBlack,
                              .unnormalizedCoordinates = false,
                          }) >>
                          ResultChecker();
 
         {
-            uint32_t zero = 0;
+            // TODO(aether) Incorrect default texture :/
 
-            m_dummyTexture = Texture(
-                m_device, m_allocator, m_commandManager, vk::Extent2D { 1, 1 }, &zero, sizeof(uint32_t));
+            uint32_t black   = 0x000000FF;
+            uint32_t magenta = 0xFF00FFFF;
+
+            std::array<uint32_t, 16 * 16> pixels {};  // for a 16x16 checkerboard texture
+
+            for (int x = 0; x < 16; x++)
+            {
+                for (int y = 0; y < 16; y++)
+                {
+                    pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+                }
+            }
+
+            m_dummyTexture = Texture(m_device,
+                                     m_allocator,
+                                     m_commandManager,
+                                     vk::Extent2D { 16, 16 },
+                                     pixels.data(),
+                                     sizeof(float) * pixels.size());
         }
 
         m_gpuSceneDataBuffer = GPUBuffer(m_allocator,
@@ -392,7 +407,11 @@ namespace renderer::backend
             .viewproj          = projection * view,
             .ambientColor      = glm::vec4(.1f),
             .cameraPos         = cameraPos,
-            .sunlightDirection = glm::vec3 { -0.2f, -1.0f, -0.3f }
+            .sunlightDirection = glm::vec3 { -0.2f, -1.0f, -0.3f },
+            .vertexBuffer      = m_device->getBufferAddress(
+                vk::BufferDeviceAddressInfo().setBuffer(m_sceneResources.vertexBuffer)),
+            .materialBuffer = m_device->getBufferAddress(
+                vk::BufferDeviceAddressInfo().setBuffer(m_sceneResources.materialBuffer)),
         };
 
         lightUniformData = m_light;

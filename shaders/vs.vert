@@ -18,7 +18,7 @@ layout (location = 2) out vec4 vTangent;
 layout (location = 3) out vec4 vPosition;
 
 void main() {
-    Vertex vertex = vertexBuffer.vertices[gl_VertexIndex];
+    Vertex vertex = sceneData.vertexBuffer.vertices[gl_VertexIndex];
 
     gl_Position = sceneData.viewProj * model * vec4(vertex.position, 1.0);
     vPosition = model * vec4(vertex.position, 1.0);

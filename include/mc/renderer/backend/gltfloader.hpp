@@ -79,6 +79,7 @@ namespace renderer::backend
     struct GltfTexture
     {
         uint32_t imageIndex;
+        uint32_t samplerIndex;
     };
 
     struct MaterialRenderInfo
@@ -118,6 +119,7 @@ namespace renderer::backend
         std::vector<GltfTexture> textures;
         std::vector<GltfNode*> nodes;
         std::vector<vk::DescriptorSet> materialDescriptors;
+        std::vector<vk::raii::Sampler> samplers;
 
         DescriptorAllocator descriptorAllocator;
 
