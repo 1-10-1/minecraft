@@ -48,14 +48,14 @@ namespace renderer::backend
         stbi_image_free(m_data);
     }
 
-    Image::Image(Device const& device,
-                 Allocator const& allocator,
-                 vk::Extent2D dimensions,
-                 vk::Format format,
-                 vk::SampleCountFlagBits sampleCount,
-                 vk::ImageUsageFlags usageFlags,
-                 vk::ImageAspectFlags aspectFlags,
-                 uint32_t mipLevels)
+    BasicImage::BasicImage(Device const& device,
+                           Allocator const& allocator,
+                           vk::Extent2D dimensions,
+                           vk::Format format,
+                           vk::SampleCountFlagBits sampleCount,
+                           vk::ImageUsageFlags usageFlags,
+                           vk::ImageAspectFlags aspectFlags,
+                           uint32_t mipLevels)
         : m_device { &device },
           m_allocator { &allocator },
           m_format { format },
@@ -68,12 +68,12 @@ namespace renderer::backend
         create();
     }
 
-    Image::~Image()
+    BasicImage::~BasicImage()
     {
         destroy();
     };
 
-    void Image::create()
+    void BasicImage::create()
     {
         createImage(m_format,
                     vk::ImageTiling::eOptimal,
@@ -90,7 +90,7 @@ namespace renderer::backend
         }
     }
 
-    void Image::destroy()
+    void BasicImage::destroy()
     {
         if (!m_handle)
         {
@@ -103,7 +103,8 @@ namespace renderer::backend
         m_handle = nullptr;
     }
 
-    void Image::copyTo(vk::CommandBuffer cmdBuf, vk::Image dst, vk::Extent2D dstSize, vk::Extent2D offset)
+    void
+    BasicImage::copyTo(vk::CommandBuffer cmdBuf, vk::Image dst, vk::Extent2D dstSize, vk::Extent2D offset)
     {
         vk::ImageBlit2 blitRegion {};
 
@@ -140,10 +141,10 @@ namespace renderer::backend
         cmdBuf.blitImage2(blitInfo);
     };
 
-    void Image::transition(vk::CommandBuffer cmdBuf,
-                           vk::Image image,
-                           vk::ImageLayout currentLayout,
-                           vk::ImageLayout newLayout)
+    void BasicImage::transition(vk::CommandBuffer cmdBuf,
+                                vk::Image image,
+                                vk::ImageLayout currentLayout,
+                                vk::ImageLayout newLayout)
     {
         // TODO(aether) Those stage masks will cause the pipeline to stall
         // figure out the appropriate stages based on a new parameter or the ones already given
@@ -174,12 +175,12 @@ namespace renderer::backend
         cmdBuf.pipelineBarrier2(depInfo);
     };
 
-    void Image::createImage(vk::Format format,
-                            vk::ImageTiling tiling,
-                            vk::ImageUsageFlags usage,
-                            vk::MemoryPropertyFlags properties,
-                            uint32_t mipLevels,
-                            vk::SampleCountFlagBits numSamples)
+    void BasicImage::createImage(vk::Format format,
+                                 vk::ImageTiling tiling,
+                                 vk::ImageUsageFlags usage,
+                                 vk::MemoryPropertyFlags properties,
+                                 uint32_t mipLevels,
+                                 vk::SampleCountFlagBits numSamples)
     {
         vk::ImageCreateInfo imageInfo {
             .imageType     = vk::ImageType::e2D,
@@ -207,7 +208,7 @@ namespace renderer::backend
                        nullptr);
     }
 
-    void Image::createImageView(vk::Format format, vk::ImageAspectFlags aspectFlags, uint32_t mipLevels)
+    void BasicImage::createImageView(vk::Format format, vk::ImageAspectFlags aspectFlags, uint32_t mipLevels)
     {
         vk::ImageViewCreateInfo viewInfo {
             .image              = m_handle,
@@ -225,10 +226,10 @@ namespace renderer::backend
         m_imageView = m_device->get().createImageView(viewInfo) >> ResultChecker();
     }
 
-    Texture::Texture(Device& device,
-                     Allocator& allocator,
-                     CommandManager& commandManager,
-                     StbiImage const& stbiImage)
+    Image::Image(Device& device,
+                 Allocator& allocator,
+                 CommandManager& commandManager,
+                 StbiImage const& stbiImage)
         : m_device { &device },
           m_allocator { &allocator },
           m_commandManager { &commandManager },
@@ -261,7 +262,7 @@ namespace renderer::backend
             ScopedCommandBuffer commandBuffer(
                 *m_device, m_commandManager->getGraphicsCmdPool(), m_device->getGraphicsQueue());
 
-            Image::transition(
+            BasicImage::transition(
                 commandBuffer, m_image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
 
             transitionImageLayout(commandBuffer,
@@ -297,12 +298,12 @@ namespace renderer::backend
         }
     }
 
-    Texture::Texture(Device& device,
-                     Allocator& allocator,
-                     CommandManager& commandManager,
-                     vk::Extent2D dimensions,
-                     void* data,
-                     size_t dataSize)
+    Image::Image(Device& device,
+                 Allocator& allocator,
+                 CommandManager& commandManager,
+                 vk::Extent2D dimensions,
+                 void* data,
+                 size_t dataSize)
         : m_device { &device },
           m_allocator { &allocator },
           m_commandManager { &commandManager },
@@ -333,7 +334,7 @@ namespace renderer::backend
             ScopedCommandBuffer commandBuffer(
                 *m_device, m_commandManager->getGraphicsCmdPool(), m_device->getGraphicsQueue());
 
-            Image::transition(
+            BasicImage::transition(
                 commandBuffer, m_image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
 
             transitionImageLayout(commandBuffer,
@@ -369,11 +370,11 @@ namespace renderer::backend
         }
     }
 
-    void Texture::generateMipmaps(ScopedCommandBuffer& commandBuffer,
-                                  vk::Image image,
-                                  vk::Extent2D dimensions,
-                                  vk::Format imageFormat,
-                                  uint32_t mipLevels)
+    void Image::generateMipmaps(ScopedCommandBuffer& commandBuffer,
+                                vk::Image image,
+                                vk::Extent2D dimensions,
+                                vk::Format imageFormat,
+                                uint32_t mipLevels)
     {
         MC_ASSERT(m_device->getFormatProperties(imageFormat).optimalTilingFeatures &
                   vk::FormatFeatureFlagBits::eSampledImageFilterLinear);

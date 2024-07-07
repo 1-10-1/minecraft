@@ -1,6 +1,14 @@
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_scalar_block_layout : require
 
+uint MaterialFeatures_ColorTexture     = 1 << 0;
+uint MaterialFeatures_NormalTexture    = 1 << 1;
+uint MaterialFeatures_RoughnessTexture = 1 << 2;
+uint MaterialFeatures_OcclusionTexture = 1 << 3;
+uint MaterialFeatures_EmissiveTexture =  1 << 4;
+uint MaterialFeatures_TangentVertexAttribute = 1 << 5;
+uint MaterialFeatures_TexcoordVertexAttribute = 1 << 6;
+
 struct AttenuationFactors {
     float quadratic, linear, constant;
 };
@@ -11,6 +19,7 @@ struct Vertex {
     vec3 normal;
     float uv_y;
     vec4 tangent;
+    vec4 color;
 };
 
 struct Material {

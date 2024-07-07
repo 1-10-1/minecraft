@@ -1,3 +1,6 @@
+[submodule "khrSampleModels"]
+	path = khrSampleModels
+	url = https://github.com/KhronosGroup/glTF-Sample-Models
 [submodule "lib/spdlog"]
 	path = lib/spdlog
 	url = https://github.com/gabime/spdlog

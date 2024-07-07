@@ -124,11 +124,11 @@ namespace renderer::backend
 
         void loadNode(tinygltf::Node const& inputNode,
                       tinygltf::Model const& input,
-                      GltfNode* parent,
+                      GlTFNode* parent,
                       std::vector<uint32_t>& indexBuffer,
                       std::vector<Vertex>& vertexBuffer);
 
-        void drawNode(vk::CommandBuffer commandBuffer, vk::PipelineLayout pipelineLayout, GltfNode* node);
+        void drawNode(vk::CommandBuffer commandBuffer, vk::PipelineLayout pipelineLayout, GlTFNode* node);
 
         void drawGltf(vk::CommandBuffer commandBuffer, vk::PipelineLayout pipelineLayout);
 
@@ -145,7 +145,7 @@ namespace renderer::backend
         DescriptorAllocator m_descriptorAllocator;
         CommandManager m_commandManager;
 
-        Image m_drawImage, m_drawImageResolve, m_depthImage;
+        BasicImage m_drawImage, m_drawImageResolve, m_depthImage;
         vk::DescriptorSet m_sceneDataDescriptors { nullptr };
         vk::raii::DescriptorSetLayout m_sceneDataDescriptorLayout { nullptr },
             m_materialDescriptorLayout { nullptr };
@@ -157,12 +157,12 @@ namespace renderer::backend
 
         GPUBuffer m_gpuSceneDataBuffer, m_lightDataBuffer;
 
-        SceneResources m_sceneResources {};
+        GlTFScene m_sceneResources {};
 
         std::array<FrameResources, kNumFramesInFlight> m_frameResources {};
 
         vk::raii::Sampler m_dummySampler { nullptr };
-        Texture m_dummyTexture {};
+        Image m_dummyTexture {};
 
         Timer m_timer;
 

@@ -61,26 +61,26 @@ namespace renderer::backend
         unsigned char* m_data { nullptr };
     };
 
-    class Image
+    class BasicImage
     {
     public:
-        Image() = default;
+        BasicImage() = default;
 
-        Image(Device const& device,
-              Allocator const& allocator,
-              vk::Extent2D dimensions,
-              vk::Format format,
-              vk::SampleCountFlagBits sampleCount,
-              vk::ImageUsageFlags usageFlags,
-              vk::ImageAspectFlags aspectFlags,
-              uint32_t mipLevels = 1);
+        BasicImage(Device const& device,
+                   Allocator const& allocator,
+                   vk::Extent2D dimensions,
+                   vk::Format format,
+                   vk::SampleCountFlagBits sampleCount,
+                   vk::ImageUsageFlags usageFlags,
+                   vk::ImageAspectFlags aspectFlags,
+                   uint32_t mipLevels = 1);
 
-        ~Image();
+        ~BasicImage();
 
-        auto operator=(Image const&) -> Image& = delete;
-        Image(Image const&)                    = delete;
+        auto operator=(BasicImage const&) -> BasicImage& = delete;
+        BasicImage(BasicImage const&)                    = delete;
 
-        Image(Image&& other) noexcept
+        BasicImage(BasicImage&& other) noexcept
         {
             std::swap(m_device, other.m_device);
             std::swap(m_allocator, other.m_allocator);
@@ -96,7 +96,7 @@ namespace renderer::backend
             m_imageView = std::move(other.m_imageView);
         };
 
-        auto operator=(Image&& other) noexcept -> Image&
+        auto operator=(BasicImage&& other) noexcept -> BasicImage&
         {
             if (this == &other)
             {
@@ -191,29 +191,29 @@ namespace renderer::backend
         vk::Extent2D m_dimensions;
     };
 
-    class Texture
+    class Image
     {
     public:
-        Texture()  = default;
-        ~Texture() = default;
+        Image()  = default;
+        ~Image() = default;
 
-        Texture(Device& device,
-                Allocator& allocator,
-                CommandManager& commandManager,
-                StbiImage const& stbiImage);
+        Image(Device& device,
+              Allocator& allocator,
+              CommandManager& commandManager,
+              StbiImage const& stbiImage);
 
-        Texture(Device& device,
-                Allocator& allocator,
-                CommandManager& commandManager,
-                vk::Extent2D dimensions,
-                void* data,
-                size_t dataSize);
+        Image(Device& device,
+              Allocator& allocator,
+              CommandManager& commandManager,
+              vk::Extent2D dimensions,
+              void* data,
+              size_t dataSize);
 
-        Texture(Texture const&)                    = delete;
-        auto operator=(Texture const&) -> Texture& = delete;
+        Image(Image const&)                    = delete;
+        auto operator=(Image const&) -> Image& = delete;
 
-        Texture(Texture&&)                    = default;
-        auto operator=(Texture&&) -> Texture& = default;
+        Image(Image&&)                    = default;
+        auto operator=(Image&&) -> Image& = default;
 
         [[nodiscard]] operator bool() const { return m_image; }
 
@@ -223,7 +223,7 @@ namespace renderer::backend
 
         [[nodiscard]] auto getImageView() const -> vk::ImageView { return m_image.getImageView(); }
 
-        [[nodiscard]] auto getImage() const -> Image const& { return m_image; }
+        [[nodiscard]] auto getImage() const -> BasicImage const& { return m_image; }
 
     private:
         Device* m_device { nullptr };
@@ -238,7 +238,7 @@ namespace renderer::backend
 
         std::string m_path;
 
-        Image m_image;
+        BasicImage m_image;
     };
 
 }  // namespace renderer::backend

@@ -41,6 +41,7 @@ namespace renderer::backend
         glm::vec3 normal;
         float uv_y;
         glm::vec4 tangent;
+        glm::vec4 color;
     };
 
     struct Primitive
@@ -55,14 +56,20 @@ namespace renderer::backend
         std::vector<Primitive> primitives;
     };
 
-    struct GltfNode
+    struct Texture
     {
-        GltfNode* parent;
-        std::vector<GltfNode*> children;
+        uint32_t imageIndex;
+        uint32_t samplerIndex;
+    };
+
+    struct GlTFNode
+    {
+        GlTFNode* parent;
+        std::vector<GlTFNode*> children;
         Mesh mesh;
         glm::mat4 transformation;
 
-        ~GltfNode()
+        ~GlTFNode()
         {
             for (auto& child : children)
             {
@@ -71,38 +78,12 @@ namespace renderer::backend
         }
     };
 
-    struct GltfImage
-    {
-        Texture texture;
-    };
-
-    struct GltfTexture
-    {
-        uint32_t imageIndex;
-        uint32_t samplerIndex;
-    };
-
-    struct MaterialRenderInfo
-    {
-        uint32_t baseColorTextureIndex;
-        uint32_t normalTextureIndex;
-        uint32_t roughnessTextureIndex;
-        uint32_t occlusionTextureIndex;
-        uint32_t emissiveTextureIndex;
-
-        vk::DescriptorSet descriptorSet;
-    };
-
-    struct SceneResources
+    struct GlTFScene
     {
         GPUBuffer vertexBuffer;
         GPUBuffer indexBuffer;
 
-        // materialBuffer is a dedicated buffer on the GPU
-        // hostMaterialBuffer is the staging buffer that gets copied to the one on the GPU whenever a change is requested
-        //
         // TODO(aether) this is, for the moment, immutable
-        //
         // TODO(aether) how about we dont keep the host material buffer
         // If we need to change the one on the vram, we copy it over first, then we modify and re-upload just the changed
         // region using BufferCopyRegion or something
@@ -115,19 +96,22 @@ namespace renderer::backend
 
         size_t indexCount;
 
-        std::vector<GltfImage> images;
-        std::vector<GltfTexture> textures;
-        std::vector<GltfNode*> nodes;
+        std::vector<Image> images;
+        std::vector<Texture> textures;
+        std::vector<GlTFNode*> nodes;
         std::vector<vk::DescriptorSet> materialDescriptors;
         std::vector<vk::raii::Sampler> samplers;
 
         DescriptorAllocator descriptorAllocator;
 
-        ~SceneResources()
+        ~GlTFScene()
         {
             for (auto node : nodes)
             {
-                delete node;
+                if (node)
+                {
+                    delete node;
+                }
             }
         };
     };

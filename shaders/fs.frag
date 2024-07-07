@@ -4,14 +4,6 @@
 
 #include "common.glsl"
 
-uint MaterialFeatures_ColorTexture     = 1 << 0;
-uint MaterialFeatures_NormalTexture    = 1 << 1;
-uint MaterialFeatures_RoughnessTexture = 1 << 2;
-uint MaterialFeatures_OcclusionTexture = 1 << 3;
-uint MaterialFeatures_EmissiveTexture =  1 << 4;
-uint MaterialFeatures_TangentVertexAttribute = 1 << 5;
-uint MaterialFeatures_TexcoordVertexAttribute = 1 << 6;
-
 layout (set = 1, binding = 0) uniform sampler2D diffuseTexture;
 layout (set = 1, binding = 1) uniform sampler2D roughnessMetalnessTexture;
 layout (set = 1, binding = 2) uniform sampler2D occlusionTexture;
@@ -22,18 +14,20 @@ layout (location = 0) in vec2 vTexcoord0;
 layout (location = 1) in vec3 vNormal;
 layout (location = 2) in vec4 vTangent;
 layout (location = 3) in vec4 vPosition;
+layout (location = 4) in vec4 vColor;
 
 layout (location = 0) out vec4 frag_color;
 
 void main() {
     Material material = sceneData.materialBuffer.materials[materialIndex];
 
-    frag_color = vec4(0, 0, 0, 0);
+    frag_color = vec4(1.0, 1.0, 1.0, 1.0);
 
-    if ((material.flags & MaterialFeatures_ColorTexture) != 0) {
-        frag_color += texture(diffuseTexture, vTexcoord0) * material.baseColorFactor;
-    } else {
-        frag_color += texture(diffuseTexture, vTexcoord0);
+    if ((material.flags & MaterialFeatures_TexcoordVertexAttribute) != 0) {
+        // A default diffuse texture is supplied no matter what
+        frag_color = texture(diffuseTexture, vTexcoord0);
     }
+
+    frag_color *= material.baseColorFactor;
 }
 

@@ -102,27 +102,25 @@ namespace renderer::backend
                          ResultChecker();
 
         {
-            // TODO(aether) Incorrect default texture :/
+            uint32_t black = 0xFF000000;
+            uint32_t white = 0xFFFFFFFF;
 
-            uint32_t black   = 0x000000FF;
-            uint32_t magenta = 0xFF00FFFF;
+            std::vector<uint32_t> pixels(32 * 32);
 
-            std::array<uint32_t, 16 * 16> pixels {};  // for a 16x16 checkerboard texture
-
-            for (int x = 0; x < 16; x++)
+            for (int x = 0; x < 32; x++)
             {
-                for (int y = 0; y < 16; y++)
+                for (int y = 0; y < 32; y++)
                 {
-                    pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+                    pixels[y * 32 + x] = ((x % 2) ^ (y % 2)) ? white : black;
                 }
             }
 
-            m_dummyTexture = Texture(m_device,
-                                     m_allocator,
-                                     m_commandManager,
-                                     vk::Extent2D { 16, 16 },
-                                     pixels.data(),
-                                     sizeof(float) * pixels.size());
+            m_dummyTexture = Image(m_device,
+                                   m_allocator,
+                                   m_commandManager,
+                                   vk::Extent2D { 32, 32 },
+                                   pixels.data(),
+                                   sizeof(float) * pixels.size());
         }
 
         m_gpuSceneDataBuffer = GPUBuffer(m_allocator,

@@ -61,10 +61,13 @@ namespace renderer::backend
         fs::current_path(gltfDir);
         fs::path path = fs::current_path() / "Cube.gltf";
 #elif 1
-        fs::path gltfDir  = "../../khrSampleModels/2.0/DragonAttenuation/glTF";
+        // Baked: Bedroom, billiards room, minimalistic modern bedroom, modern bedroom,
+        // the kings hall, the morning room, the upper vestibule
+        // Not baked: Japanese classroom
+        fs::path gltfDir  = "../../models/the_kings_hall";
         fs::path prevPath = fs::current_path();
         fs::current_path(gltfDir);
-        fs::path path = fs::current_path() / "DragonAttenuation.gltf";
+        fs::path path = fs::current_path() / "scene.gltf";
 
 #else
         fs::path gltfDir  = "../../khrSampleModels/2.0/Sponza/glTF";
@@ -189,14 +192,13 @@ namespace renderer::backend
             }
 
             // Load texture from image buffer
-            m_sceneResources.images[i].texture =
-                Texture(m_device,
-                        m_allocator,
-                        m_commandManager,
-                        vk::Extent2D { static_cast<uint32_t>(glTFImage.width),
-                                       static_cast<uint32_t>(glTFImage.height) },
-                        buffer,
-                        bufferSize);
+            m_sceneResources.images[i] = Image(m_device,
+                                               m_allocator,
+                                               m_commandManager,
+                                               vk::Extent2D { static_cast<uint32_t>(glTFImage.width),
+                                                              static_cast<uint32_t>(glTFImage.height) },
+                                               buffer,
+                                               bufferSize);
 
             if (deleteBuffer)
             {
@@ -271,8 +273,6 @@ namespace renderer::backend
                     0,
                     m_sceneResources.hostMaterialBuffer.getSize());
 
-        std::vector<int> b {};
-
         for (size_t i = 0; i < input.materials.size(); i++)
         {
             tinygltf::Material glTFMaterial = input.materials[i];
@@ -310,8 +310,7 @@ namespace renderer::backend
                 {
                     writer.write_image(
                         binding,
-                        m_sceneResources.images[glTFMaterial.values[name].TextureIndex()]
-                            .texture.getImageView(),
+                        m_sceneResources.images[glTFMaterial.values[name].TextureIndex()].getImageView(),
                         m_sceneResources
                             .samplers[m_sceneResources
                                           .textures[glTFMaterial.additionalValues[name].TextureIndex()]
@@ -326,7 +325,7 @@ namespace renderer::backend
                     writer.write_image(
                         binding,
                         m_sceneResources.images[glTFMaterial.additionalValues[name].TextureIndex()]
-                            .texture.getImageView(),
+                            .getImageView(),
                         m_sceneResources
                             .samplers[m_sceneResources
                                           .textures[glTFMaterial.additionalValues[name].TextureIndex()]
@@ -354,11 +353,11 @@ namespace renderer::backend
 
     void RendererBackend::loadNode(tinygltf::Node const& inputNode,
                                    tinygltf::Model const& input,
-                                   GltfNode* parent,
+                                   GlTFNode* parent,
                                    std::vector<uint32_t>& indexBuffer,
                                    std::vector<Vertex>& vertexBuffer)
     {
-        GltfNode* node       = new GltfNode {};
+        GlTFNode* node       = new GlTFNode {};
         node->transformation = glm::mat4(1.0f);
         node->parent         = parent;
 
@@ -417,6 +416,7 @@ namespace renderer::backend
                     float const* normalsBuffer   = nullptr;
                     float const* texCoordsBuffer = nullptr;
                     float const* tangentsBuffer  = nullptr;
+                    float const* colorsBuffer    = nullptr;
                     size_t vertexCount           = 0;
 
                     // Get buffer data for vertex positions
@@ -429,6 +429,8 @@ namespace renderer::backend
                             &(input.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
                         vertexCount = accessor.count;
                     }
+
+                    vertexBuffer.resize(vertexBuffer.size() + vertexCount);
 
                     // Get buffer data for vertex normals
                     if (glTFPrimitive.attributes.find("NORMAL") != glTFPrimitive.attributes.end())
@@ -464,22 +466,27 @@ namespace renderer::backend
                         material.flags |= std::to_underlying(MaterialFeatures::TangentVertexAttribute);
                     }
 
-                    // Append data to model's vertex buffer
-                    for (size_t v = 0; v < vertexCount; v++)
+                    // Vertex colors
+                    if (glTFPrimitive.attributes.find("COLOR_0") != glTFPrimitive.attributes.end())
                     {
-                        Vertex vert {};
-                        vert.position = glm::make_vec3(&positionBuffer[v * 3]);
-                        vert.normal   = glm::normalize(glm::vec3(
-                            normalsBuffer ? glm::make_vec3(&normalsBuffer[v * 3]) : glm::vec3(0.0f)));
-                        vert.tangent = tangentsBuffer ? glm::make_vec4(&tangentsBuffer[v * 4]) : glm::vec4(0);
+                        tinygltf::Accessor const& accessor =
+                            input.accessors[glTFPrimitive.attributes.find("COLOR_0")->second];
+                        tinygltf::BufferView const& view = input.bufferViews[accessor.bufferView];
+                        colorsBuffer                     = reinterpret_cast<float const*>(
+                            &(input.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
+                    }
 
-                        if (texCoordsBuffer)
-                        {
-                            glm::vec2 uv_vec = glm::make_vec2(&texCoordsBuffer[v * 2]);
-                            vert.uv_x        = uv_vec.x;
-                            vert.uv_y        = uv_vec.y;
-                        }
-                        vertexBuffer.push_back(vert);
+                    for (size_t v = 0; v < vertexCount; ++v)
+                    {
+                        vertexBuffer[vertexBuffer.size() - vertexCount + v] = {
+                            .position = glm::make_vec3(&positionBuffer[v * 3]),
+                            .uv_x     = texCoordsBuffer ? texCoordsBuffer[v * 2] : 0.0f,
+                            .normal   = glm::normalize(glm::vec3(
+                                normalsBuffer ? glm::make_vec3(&normalsBuffer[v * 3]) : glm::vec3(0.0f))),
+                            .uv_y     = texCoordsBuffer ? texCoordsBuffer[v * 2 + 1] : 0.0f,
+                            .tangent = tangentsBuffer ? glm::make_vec4(&tangentsBuffer[v * 4]) : glm::vec4(0),
+                            .color   = colorsBuffer ? glm::make_vec4(&colorsBuffer[v * 4]) : glm::vec4(0),
+                        };
                     }
                 }
 
@@ -525,7 +532,7 @@ namespace renderer::backend
                                 break;
                             }
                         default:
-                            MC_ASSERT_MSG(false, "Unsupported index type");
+                            MC_ASSERT_MSG(false, "Unsupported index type: {}", accessor.componentType);
                             return;
                     }
                 }
@@ -550,12 +557,12 @@ namespace renderer::backend
 
     void RendererBackend::drawNode(vk::CommandBuffer commandBuffer,
                                    vk::PipelineLayout pipelineLayout,
-                                   GltfNode* node)
+                                   GlTFNode* node)
     {
         if (node->mesh.primitives.size() > 0)
         {
             glm::mat4 nodeTransform = node->transformation;
-            GltfNode* currentParent = node->parent;
+            GlTFNode* currentParent = node->parent;
 
             // TODO(aether) prolly precalculate this? profile it tho
             while (currentParent)
