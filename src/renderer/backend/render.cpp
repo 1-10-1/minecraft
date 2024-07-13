@@ -147,10 +147,13 @@ namespace renderer::backend
 
         cmdBuf.setScissor(0, scissor);
 
-        m_stats.drawcall_count = 0;
-        m_stats.triangle_count = 0;
+        m_stats.drawCount     = 0;
+        m_stats.triangleCount = 0;
 
-        drawGltf(cmdBuf, m_texturedPipelineLayout);
+        m_gltfScene.draw(cmdBuf, m_pipeline, m_pipelineLayout, m_sceneDataDescriptors);
+
+        m_stats.drawCount += m_gltfScene.getLastDrawCount();
+        m_stats.triangleCount += m_gltfScene.getLastTriangleCount();
 
         cmdBuf.endRendering();
     }
@@ -298,8 +301,8 @@ namespace renderer::backend
                                "Vsync: %s",
                                m_surface.getVsync() ? "on" : "off");
 
-            ImGui::Text("Triangles %i", m_stats.triangle_count);
-            ImGui::Text("Draws %i", m_stats.drawcall_count);
+            ImGui::Text("Triangles %i", m_stats.triangleCount);
+            ImGui::Text("Draws %i", m_stats.drawCount);
 
             ImGui::End();
         }

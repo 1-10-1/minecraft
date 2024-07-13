@@ -18,11 +18,10 @@ public:
         reset();
     };
 
+    Timer(Timer&&)                         = delete;
     Timer(Timer const&)                    = delete;
+    auto operator=(Timer&&) -> Timer&      = delete;
     auto operator=(Timer const&) -> Timer& = delete;
-
-    Timer(Timer&&)                    = delete;
-    auto operator=(Timer&&) -> Timer& = delete;
 
     ~Timer() = default;
 

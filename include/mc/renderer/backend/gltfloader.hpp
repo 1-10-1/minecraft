@@ -4,6 +4,8 @@
 #include "descriptor.hpp"
 #include "image.hpp"
 
+#include <filesystem>
+
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/vector_float4.hpp>
 #include <tiny_gltf.h>
@@ -78,10 +80,80 @@ namespace renderer::backend
         }
     };
 
-    struct GlTFScene
+    class GlTFScene
     {
-        GPUBuffer vertexBuffer;
-        GPUBuffer indexBuffer;
+    public:
+        GlTFScene() = default;
+
+        GlTFScene(Device& device,
+                  CommandManager& cmdManager,
+                  Allocator& allocator,
+                  vk::DescriptorSetLayout materialDescriptorLayout,
+                  Image& dummyTexture,
+                  vk::Sampler dummySampler,
+                  std::filesystem::path path);
+
+        ~GlTFScene()
+        {
+            for (auto node : m_nodes)
+            {
+                if (node)
+                {
+                    delete node;
+                }
+            }
+        };
+
+        GlTFScene(GlTFScene const&) = delete;
+        GlTFScene(GlTFScene&&)      = default;
+
+        GlTFScene& operator=(GlTFScene const&) = delete;
+        GlTFScene& operator=(GlTFScene&&)      = default;
+
+        void draw(vk::CommandBuffer commandBuffer,
+                  vk::Pipeline pipeline,
+                  vk::PipelineLayout pipelineLayout,
+                  vk::DescriptorSet sceneDataDescriptorSet);
+
+        auto getVertexBufferAddress() const -> size_t { return m_vertexBufferAddress; }
+
+        auto getMaterialBufferAddress() const -> size_t { return m_materialBufferAddress; }
+
+        auto getLastDrawCount() const -> uint32_t { return m_drawCount; }
+
+        auto getLastTriangleCount() const -> uint64_t { return m_triangleCount; }
+
+    private:
+        void loadImages(tinygltf::Model& input);
+
+        void loadTextures(tinygltf::Model& input);
+
+        void loadMaterials(tinygltf::Model& input);
+
+        void loadSamplers(tinygltf::Model& input);
+
+        void loadNode(tinygltf::Node const& inputNode,
+                      tinygltf::Model const& input,
+                      GlTFNode* parent,
+                      std::vector<uint32_t>& indexBuffer,
+                      std::vector<Vertex>& vertexBuffer);
+
+        void drawNode(vk::CommandBuffer commandBuffer,
+                      vk::Pipeline pipeline,
+                      vk::PipelineLayout pipelineLayout,
+                      vk::DescriptorSet sceneDataDescriptorSet,
+                      GlTFNode* node);
+
+        Device* m_device { nullptr };
+        CommandManager* m_commandManager { nullptr };
+        Allocator* m_allocator { nullptr };
+
+        vk::DescriptorSetLayout m_materialDescriptorLayout { nullptr };
+        vk::Sampler m_dummySampler { nullptr };
+        Image* m_dummyTexture { nullptr };
+
+        GPUBuffer m_vertexBuffer;
+        GPUBuffer m_indexBuffer;
 
         // TODO(aether) this is, for the moment, immutable
         // TODO(aether) how about we dont keep the host material buffer
@@ -91,28 +163,22 @@ namespace renderer::backend
         // materials on the GPU and whenever material n needs to be modified, we just memcpy it into the
         // (n*sizeof(Material), (n+1)*sizeof(Material)) region of the material buffer on the vram
         // But of course with this, deleting/creating new materials will become more cumbersome
-        GPUBuffer materialBuffer;
-        GPUBuffer hostMaterialBuffer;
+        GPUBuffer m_materialBuffer;
+        GPUBuffer m_hostMaterialBuffer;
 
-        size_t indexCount;
+        size_t m_indexCount;
 
-        std::vector<Image> images;
-        std::vector<Texture> textures;
-        std::vector<GlTFNode*> nodes;
-        std::vector<vk::DescriptorSet> materialDescriptors;
-        std::vector<vk::raii::Sampler> samplers;
+        std::vector<Image> m_images;
+        std::vector<Texture> m_textures;
+        std::vector<GlTFNode*> m_nodes;
+        std::vector<vk::DescriptorSet> m_materialDescriptors;
+        std::vector<vk::raii::Sampler> m_samplers;
 
-        DescriptorAllocator descriptorAllocator;
+        DescriptorAllocator m_descriptorAllocator;
 
-        ~GlTFScene()
-        {
-            for (auto node : nodes)
-            {
-                if (node)
-                {
-                    delete node;
-                }
-            }
-        };
+        uint32_t m_drawCount { 0 };
+        size_t m_triangleCount { 0 };
+
+        size_t m_vertexBufferAddress { 0 }, m_materialBufferAddress { 0 };
     };
 }  // namespace renderer::backend

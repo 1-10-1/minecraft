@@ -139,18 +139,14 @@ namespace renderer::backend
 
         initDescriptors();
 
-        auto pipelineLayoutConfig = PipelineLayoutConfig()
-                                        .setDescriptorSetLayouts({ m_sceneDataDescriptorLayout })
-                                        .setPushConstantSettings(sizeof(GPUDrawPushConstants),
-                                                                 vk::ShaderStageFlagBits::eVertex |
-                                                                     vk::ShaderStageFlagBits::eFragment);
+        auto pipelineLayoutConfig =
+            PipelineLayoutConfig()
+                .setDescriptorSetLayouts({ m_sceneDataDescriptorLayout, m_materialDescriptorLayout })
+                .setPushConstantSettings(sizeof(GPUDrawPushConstants),
+                                         vk::ShaderStageFlagBits::eVertex |
+                                             vk::ShaderStageFlagBits::eFragment);
 
-        m_texturelessPipelineLayout = PipelineLayout(m_device, pipelineLayoutConfig);
-
-        pipelineLayoutConfig.setDescriptorSetLayouts(
-            { m_sceneDataDescriptorLayout, m_materialDescriptorLayout });
-
-        m_texturedPipelineLayout = PipelineLayout(m_device, pipelineLayoutConfig);
+        m_pipelineLayout = PipelineLayout(m_device, pipelineLayoutConfig);
 
         {
             auto pipelineConfig =
@@ -160,15 +156,21 @@ namespace renderer::backend
                     .setColorAttachmentFormat(m_drawImage.getFormat())
                     .setDepthAttachmentFormat(kDepthStencilFormat)
                     .setDepthStencilSettings(true, vk::CompareOp::eGreaterOrEqual)
-                    // .setCullingSettings(vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise)
-                    // .setPolygonMode(vk::PolygonMode::eLine)
+                    .setCullingSettings(vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise)
+                    .setPolygonMode(vk::PolygonMode::eLine)
                     .setSampleCount(m_device.getMaxUsableSampleCount())
                     .setSampleShadingSettings(true, 0.1f);
 
-            m_texturedPipeline = GraphicsPipeline(m_device, m_texturedPipelineLayout, pipelineConfig);
+            m_pipeline = GraphicsPipeline(m_device, m_pipelineLayout, pipelineConfig);
         }
 
-        processGltf();
+        m_gltfScene = GlTFScene(m_device,
+                                m_commandManager,
+                                m_allocator,
+                                m_materialDescriptorLayout,
+                                m_dummyTexture,
+                                m_dummySampler,
+                                "../../khrSampleModels/2.0/Sponza/glTF/Sponza.gltf");
 
         m_light = {
             .position    = { 1.5f,                  2.f,               0.f              },
@@ -406,10 +408,8 @@ namespace renderer::backend
             .ambientColor      = glm::vec4(.1f),
             .cameraPos         = cameraPos,
             .sunlightDirection = glm::vec3 { -0.2f, -1.0f, -0.3f },
-            .vertexBuffer      = m_device->getBufferAddress(
-                vk::BufferDeviceAddressInfo().setBuffer(m_sceneResources.vertexBuffer)),
-            .materialBuffer = m_device->getBufferAddress(
-                vk::BufferDeviceAddressInfo().setBuffer(m_sceneResources.materialBuffer)),
+            .vertexBuffer      = m_gltfScene.getVertexBufferAddress(),
+            .materialBuffer    = m_gltfScene.getMaterialBufferAddress(),
         };
 
         lightUniformData = m_light;

@@ -112,26 +112,6 @@ namespace renderer::backend
 
         void initDescriptors();
 
-        void processGltf();
-
-        void loadImages(tinygltf::Model& input);
-
-        void loadTextures(tinygltf::Model& input);
-
-        void loadMaterials(tinygltf::Model& input);
-
-        void loadSamplers(tinygltf::Model& input);
-
-        void loadNode(tinygltf::Node const& inputNode,
-                      tinygltf::Model const& input,
-                      GlTFNode* parent,
-                      std::vector<uint32_t>& indexBuffer,
-                      std::vector<Vertex>& vertexBuffer);
-
-        void drawNode(vk::CommandBuffer commandBuffer, vk::PipelineLayout pipelineLayout, GlTFNode* node);
-
-        void drawGltf(vk::CommandBuffer commandBuffer, vk::PipelineLayout pipelineLayout);
-
         void handleSurfaceResize();
         void createSyncObjects();
         void destroySyncObjects();
@@ -152,12 +132,12 @@ namespace renderer::backend
 
         vk::raii::DescriptorPool m_imGuiPool { nullptr };
 
-        PipelineLayout m_texturedPipelineLayout, m_texturelessPipelineLayout;
-        GraphicsPipeline m_texturedPipeline, m_texturelessPipeline;
+        PipelineLayout m_pipelineLayout;
+        GraphicsPipeline m_pipeline;
 
         GPUBuffer m_gpuSceneDataBuffer, m_lightDataBuffer;
 
-        GlTFScene m_sceneResources {};
+        GlTFScene m_gltfScene {};
 
         std::array<FrameResources, kNumFramesInFlight> m_frameResources {};
 
@@ -170,8 +150,8 @@ namespace renderer::backend
 
         struct EngineStats
         {
-            uint64_t triangle_count;
-            uint64_t drawcall_count;
+            uint64_t triangleCount;
+            uint64_t drawCount;
         } m_stats {};
 
         uint32_t m_currentFrame { 0 };

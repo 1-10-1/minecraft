@@ -44,8 +44,8 @@ void Timer::tick()
 
 void Timer::reset()
 {
-    m_baseTimePoint = Clock::now();
-    m_prevTimePoint = m_baseTimePoint;
-    m_pauseTime     = 0.0ms;
-    m_isPaused      = false;
+    m_baseTimePoint = m_prevTimePoint = m_pauseTimePoint = m_latestTimePoint = Clock::now();
+    m_deltaTime                                                              = 0.0ms;
+    m_pauseTime                                                              = 0.0ms;
+    m_isPaused                                                               = false;
 }
