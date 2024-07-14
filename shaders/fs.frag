@@ -18,16 +18,28 @@ layout (location = 4) in vec4 vColor;
 
 layout (location = 0) out vec4 frag_color;
 
+struct AttenuationFactors {
+    float quadratic, linear, constant, pad;
+};
+
+layout(set = 0, binding = 1) uniform PointLight {
+    vec3 position;
+    float pad1;
+    vec3 color;
+    float pad2;
+    AttenuationFactors attenuationFactors;
+} pointLight;
+
 void main() {
     Material material = sceneData.materialBuffer.materials[materialIndex];
 
-    frag_color = vec4(1.0, 1.0, 1.0, 1.0);
+    frag_color = material.baseColorFactor == vec4(0.0, 0.0, 0.0, 0.0) ? vec4(1.0, 1.0, 1.0, 1.0) : material.baseColorFactor;
 
     if ((material.flags & MaterialFeatures_TexcoordVertexAttribute) != 0) {
         // A default diffuse texture is supplied no matter what
-        frag_color = texture(diffuseTexture, vTexcoord0);
+        frag_color *= texture(diffuseTexture, vTexcoord0);
+    } else {
+        frag_color *= texture(diffuseTexture, gl_FragCoord.xy * 0.0025);
     }
-
-    frag_color *= material.baseColorFactor;
 }
 

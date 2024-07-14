@@ -1,6 +1,3 @@
-[submodule "khrSampleModels"]
-	path = khrSampleModels
-	url = https://github.com/KhronosGroup/glTF-Sample-Models
 [submodule "lib/spdlog"]
 	path = lib/spdlog
 	url = https://github.com/gabime/spdlog
@@ -59,3 +56,6 @@
 [submodule "lib/tinygltf"]
 	path = lib/tinygltf
 	url = https://github.com/syoyo/tinygltf
+[submodule "gltfSampleAssets"]
+	path = gltfSampleAssets
+	url = https://github.com/KhronosGroup/glTF-Sample-Assets

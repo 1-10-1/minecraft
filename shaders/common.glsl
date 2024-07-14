@@ -9,8 +9,10 @@ uint MaterialFeatures_EmissiveTexture =  1 << 4;
 uint MaterialFeatures_TangentVertexAttribute = 1 << 5;
 uint MaterialFeatures_TexcoordVertexAttribute = 1 << 6;
 
-struct AttenuationFactors {
-    float quadratic, linear, constant;
+layout(push_constant) uniform PushConstants
+{
+    mat4 model;
+    uint materialIndex;
 };
 
 struct Vertex {
@@ -42,30 +44,16 @@ layout(buffer_reference, std430) readonly buffer MaterialBuffer {
 	Material materials[];
 };
 
-layout(push_constant) uniform PushConstants
-{
-    mat4 model;
-    uint materialIndex;
-};
-
 layout(set = 0, binding = 0) uniform SceneData {
     mat4 view;
     mat4 proj;
     mat4 viewProj;
     vec4 ambientColor;
     vec3 cameraPos;
-    float pad1;
+    float screenWidth;
     vec3 sunlightDirection;
+    float screenHeight;
     VertexBuffer vertexBuffer;
     MaterialBuffer materialBuffer;
 } sceneData;
-
-layout(set = 0, binding = 1) uniform PointLight {
-    vec3 position;
-    float pad1;
-    vec3 color;
-    float pad2;
-    AttenuationFactors attenuationFactors;
-    float pad3;
-} pointLight;
 

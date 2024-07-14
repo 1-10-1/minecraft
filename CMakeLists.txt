@@ -182,22 +182,20 @@ foreach(SHADER_FILE ${SHADER_FILES})
         COMMENT "Compiling ${SHADER_TYPE} shader: ${SHADER_FILE}"
     )
 
-    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-        # Also output the assembly
-        add_custom_command(
-            OUTPUT "${SHADER_OUTPUT_DIR}/${FILE_NAME_WITH_EXT}.asm"
-            COMMAND glslc ${SHADER_FILE} -O -S
-                    -o "${SHADER_OUTPUT_DIR}/${FILE_NAME_WITH_EXT}.asm"
-                    -std=460
-                    --target-spv=spv1.6
-                    --target-env=vulkan1.3
-                    -fshader-stage=${SHADER_TYPE}
-                -g
-            DEPENDS ${SHADER_FILE}
-            COMMENT "Compiling ${SHADER_TYPE} shader assembly: ${SHADER_FILE}"
-        )
-        list(APPEND COMPILED_SHADERS "${SHADER_OUTPUT_DIR}/${FILE_NAME_WITH_EXT}.asm")
-    endif()
+    # Also output the assembly
+    add_custom_command(
+        OUTPUT "${SHADER_OUTPUT_DIR}/${FILE_NAME_WITH_EXT}.asm"
+        COMMAND glslc ${SHADER_FILE} -O -S
+                -o "${SHADER_OUTPUT_DIR}/${FILE_NAME_WITH_EXT}.asm"
+                -std=460
+                --target-spv=spv1.6
+                --target-env=vulkan1.3
+                -fshader-stage=${SHADER_TYPE}
+            -g
+        DEPENDS ${SHADER_FILE}
+        COMMENT "Compiling ${SHADER_TYPE} shader assembly: ${SHADER_FILE}"
+    )
+    list(APPEND COMPILED_SHADERS "${SHADER_OUTPUT_DIR}/${FILE_NAME_WITH_EXT}.asm")
 
     list(APPEND COMPILED_SHADERS "${SHADER_OUTPUT_DIR}/${FILE_NAME_WITH_EXT}.spv")
 endforeach()

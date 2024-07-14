@@ -102,8 +102,8 @@ namespace renderer::backend
                          ResultChecker();
 
         {
-            uint32_t black = 0xFF000000;
-            uint32_t white = 0xFFFFFFFF;
+            uint32_t dark  = 0xFF111111;
+            uint32_t light = 0xFF777777;
 
             std::vector<uint32_t> pixels(32 * 32);
 
@@ -111,7 +111,7 @@ namespace renderer::backend
             {
                 for (int y = 0; y < 32; y++)
                 {
-                    pixels[y * 32 + x] = ((x % 2) ^ (y % 2)) ? white : black;
+                    pixels[y * 32 + x] = ((x % 2) ^ (y % 2)) ? light : dark;
                 }
             }
 
@@ -157,20 +157,20 @@ namespace renderer::backend
                     .setDepthAttachmentFormat(kDepthStencilFormat)
                     .setDepthStencilSettings(true, vk::CompareOp::eGreaterOrEqual)
                     .setCullingSettings(vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise)
-                    .setPolygonMode(vk::PolygonMode::eLine)
                     .setSampleCount(m_device.getMaxUsableSampleCount())
                     .setSampleShadingSettings(true, 0.1f);
 
             m_pipeline = GraphicsPipeline(m_device, m_pipelineLayout, pipelineConfig);
         }
 
-        m_gltfScene = GlTFScene(m_device,
-                                m_commandManager,
-                                m_allocator,
-                                m_materialDescriptorLayout,
-                                m_dummyTexture,
-                                m_dummySampler,
-                                "../../khrSampleModels/2.0/Sponza/glTF/Sponza.gltf");
+        m_gltfScene =
+            GlTFScene(m_device,
+                      m_commandManager,
+                      m_allocator,
+                      m_materialDescriptorLayout,
+                      m_dummyTexture,
+                      m_dummySampler,
+                      std::format("../../gltfSampleAssets/Models/{0}/glTF/{0}.gltf", "DragonDispersion"));
 
         m_light = {
             .position    = { 1.5f,                  2.f,               0.f              },
@@ -407,7 +407,9 @@ namespace renderer::backend
             .viewproj          = projection * view,
             .ambientColor      = glm::vec4(.1f),
             .cameraPos         = cameraPos,
+            .screenWeight      = static_cast<float>(m_drawImage.getDimensions().width),
             .sunlightDirection = glm::vec3 { -0.2f, -1.0f, -0.3f },
+            .screenHeight      = static_cast<float>(m_drawImage.getDimensions().height),
             .vertexBuffer      = m_gltfScene.getVertexBufferAddress(),
             .materialBuffer    = m_gltfScene.getMaterialBufferAddress(),
         };

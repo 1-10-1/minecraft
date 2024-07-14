@@ -33,13 +33,16 @@ namespace renderer::backend
 
     struct alignas(16) GPUSceneData
     {
-        glm::mat4 view;
-        glm::mat4 proj;
-        glm::mat4 viewproj;
-        glm::vec4 ambientColor;
-        glm::vec3 cameraPos;
-        float pad;
-        glm::vec3 sunlightDirection;
+        glm::mat4 view {};
+        glm::mat4 proj {};
+        glm::mat4 viewproj {};
+
+        glm::vec4 ambientColor {};
+
+        glm::vec3 cameraPos {};
+        float screenWeight {};
+        glm::vec3 sunlightDirection {};
+        float screenHeight {};
 
         vk::DeviceAddress vertexBuffer {};
         vk::DeviceAddress materialBuffer {};
@@ -66,10 +69,8 @@ namespace renderer::backend
 
         struct AttenuationFactors
         {
-            float quadratic, linear, constant;
+            float quadratic, linear, constant, pad;
         } attenuation;
-
-        float pad3;
     };
 
     class RendererBackend
