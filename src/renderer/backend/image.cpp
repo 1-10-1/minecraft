@@ -290,11 +290,34 @@ namespace renderer::backend
                 uploadBuffer, m_image, vk::ImageLayout::eTransferDstOptimal, { region });
 
             //transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL here
-            generateMipmaps(commandBuffer,
-                            m_image,
-                            { dimensions.width, dimensions.height },
-                            vk::Format::eR8G8B8A8Unorm,
-                            mipLevels);
+            // generateMipmaps(commandBuffer,
+            //                 m_image,
+            //                 { dimensions.width, dimensions.height },
+            //                 vk::Format::eR8G8B8A8Unorm,
+            //                 mipLevels);
+
+            commandBuffer->pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+                                           vk::PipelineStageFlagBits::eFragmentShader,
+                                           vk::DependencyFlags { 0 },
+                                           {},
+                                           {},
+                                           {
+                {
+                    .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
+                    .dstAccessMask = vk::AccessFlagBits::eShaderRead,
+                    .oldLayout     = vk::ImageLayout::eTransferDstOptimal,
+                    .newLayout     = vk::ImageLayout::eShaderReadOnlyOptimal,
+                    .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
+                    .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
+                    .image = m_image,
+                    .subresourceRange = {
+                        .aspectMask     = vk::ImageAspectFlagBits::eColor,
+                        .levelCount     = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount     = 1,
+                    },
+                }
+            });
         }
     }
 
@@ -331,6 +354,7 @@ namespace renderer::backend
         std::memcpy(uploadBuffer.getMappedData(), data, dataSize);
 
         {
+            // TODO(aether) graphics or transfer?
             ScopedCommandBuffer commandBuffer(
                 *m_device, m_commandManager->getGraphicsCmdPool(), m_device->getGraphicsQueue());
 
@@ -362,34 +386,57 @@ namespace renderer::backend
                 uploadBuffer, m_image, vk::ImageLayout::eTransferDstOptimal, { region });
 
             //transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL here
-            generateMipmaps(commandBuffer,
-                            m_image,
-                            { dimensions.width, dimensions.height },
-                            vk::Format::eR8G8B8A8Unorm,
-                            mipLevels);
+            // generateMipmaps(commandBuffer,
+            //                 m_image,
+            //                 { dimensions.width, dimensions.height },
+            //                 vk::Format::eR8G8B8A8Unorm,
+            //                 mipLevels);
+
+            commandBuffer->pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+                                           vk::PipelineStageFlagBits::eFragmentShader,
+                                           vk::DependencyFlags { 0 },
+                                           {},
+                                           {},
+                                           {
+                {
+                    .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
+                    .dstAccessMask = vk::AccessFlagBits::eShaderRead,
+                    .oldLayout     = vk::ImageLayout::eTransferDstOptimal,
+                    .newLayout     = vk::ImageLayout::eShaderReadOnlyOptimal,
+                    .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
+                    .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
+                    .image = m_image,
+                    .subresourceRange = {
+                        .aspectMask     = vk::ImageAspectFlagBits::eColor,
+                        .levelCount     = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount     = 1,
+                    },
+                }
+            });
         }
     }
 
-    void Image::generateMipmaps(ScopedCommandBuffer& commandBuffer,
-                                vk::Image image,
-                                vk::Extent2D dimensions,
-                                vk::Format imageFormat,
-                                uint32_t mipLevels)
+    void generateMipmaps(ScopedCommandBuffer& commandBuffer,
+                         vk::Image image,
+                         vk::Extent2D dimensions,
+                         vk::Format imageFormat,
+                         uint32_t mipLevels)
     {
-        MC_ASSERT(m_device->getFormatProperties(imageFormat).optimalTilingFeatures &
-                  vk::FormatFeatureFlagBits::eSampledImageFilterLinear);
+        // MC_ASSERT(m_device->getFormatProperties(imageFormat).optimalTilingFeatures &
+        //           vk::FormatFeatureFlagBits::eSampledImageFilterLinear);
 
         vk::ImageMemoryBarrier barrier {
-        .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .image               = image,
-        .subresourceRange    = {
-            .aspectMask      = vk::ImageAspectFlagBits::eColor,
-            .levelCount      = 1,
-            .baseArrayLayer  = 0,
-            .layerCount      = 1,
-        }
-    };
+                .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
+                .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
+                .image               = image,
+                .subresourceRange    = {
+                    .aspectMask      = vk::ImageAspectFlagBits::eColor,
+                    .levelCount      = 1,
+                    .baseArrayLayer  = 0,
+                    .layerCount      = 1,
+                }
+            };
 
         int mipWidth  = static_cast<int>(dimensions.width);
         int mipHeight = static_cast<int>(dimensions.height);
@@ -528,5 +575,4 @@ namespace
         commandBuffer->pipelineBarrier(
             sourceStage, destinationStage, vk::DependencyFlags { 0 }, {}, {}, { barrier });
     }
-
 }  // namespace

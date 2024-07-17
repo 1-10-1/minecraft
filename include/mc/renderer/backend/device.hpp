@@ -61,6 +61,11 @@ namespace renderer::backend
             return m_physicalHandle.getProperties();
         }
 
+        [[nodiscard]] auto getDeviceFeatures() const -> vk::PhysicalDeviceFeatures
+        {
+            return m_physicalHandle.getFeatures();
+        }
+
         [[nodiscard]] auto getFormatProperties(vk::Format format) const -> vk::FormatProperties
         {
             return m_physicalHandle.getFormatProperties(format);

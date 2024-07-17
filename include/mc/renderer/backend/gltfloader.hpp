@@ -1,17 +1,20 @@
 #pragma once
 
 #include "buffer.hpp"
-#include "descriptor.hpp"
 #include "image.hpp"
 
-#include <filesystem>
-
 #include <glm/ext/matrix_float4x4.hpp>
+#include <glm/ext/quaternion_double.hpp>
 #include <glm/ext/vector_float4.hpp>
 #include <tiny_gltf.h>
 
 namespace renderer::backend
 {
+    // Changes to this must also be reflected in the shader
+    constexpr uint32_t kMaxNumJoints = 128;
+
+    struct Node;
+
     enum class MaterialFeatures : uint32_t
     {
         ColorTexture            = 1 << 0,
@@ -23,162 +26,393 @@ namespace renderer::backend
         TexcoordVertexAttribute = 1 << 6,
     };
 
-    struct alignas(16) Material
+    struct BoundingBox
+    {
+        BoundingBox() {};
+
+        BoundingBox(glm::vec3 min, glm::vec3 max) : min(min), max(max) {};
+
+        BoundingBox getAABB(glm::mat4 m);
+
+        glm::vec3 min;
+        glm::vec3 max;
+
+        bool valid = false;
+    };
+
+    struct TextureSampler
+    {
+        vk::Filter magFilter;
+        vk::Filter minFilter;
+        vk::SamplerAddressMode addressModeU;
+        vk::SamplerAddressMode addressModeV;
+        vk::SamplerAddressMode addressModeW;
+    };
+
+    struct GlTFTexture
+    {
+        GlTFTexture() = default;
+
+        GlTFTexture(Device& device,
+                    Allocator& allocator,
+                    CommandManager& cmdManager,
+                    tinygltf::Image& gltfimage,
+                    std::string path,
+                    TextureSampler textureSampler);
+
+        ~GlTFTexture()
+        {
+            image = {};
+            sampler.clear();
+        };
+
+        GlTFTexture(GlTFTexture const&)            = delete;
+        GlTFTexture& operator=(GlTFTexture const&) = delete;
+
+        GlTFTexture(GlTFTexture&&)            = default;
+        GlTFTexture& operator=(GlTFTexture&&) = default;
+
+        BasicImage image {};
+
+        vk::ImageLayout layout {};
+
+        vk::DescriptorImageInfo descriptor {};
+        vk::raii::Sampler sampler { nullptr };
+
+        void updateDescriptor();
+
+    private:
+        Device* m_device { nullptr };
+        Allocator* m_allocator { nullptr };
+        CommandManager* m_commandManager { nullptr };
+    };
+
+    struct alignas(16) ShaderMaterial
     {
         glm::vec4 baseColorFactor;
+        glm::vec4 emissiveFactor;
+        glm::vec4 diffuseFactor;
+        glm::vec4 specularFactor;
 
-        glm::vec3 emissiveFactor;
+        float workflow;
+
         float metallicFactor;
-
+        float emissiveStrength;
         float roughnessFactor;
-        float occlusionFactor;
-        uint32_t flags;
-        uint32_t pad;
+
+        int colorTextureSet;
+        int normalTextureSet;
+        int occlusionTextureSet;
+        int emissiveTextureSet;
+        int physicalDescriptorTextureSet;
+
+        float alphaMask;
+        float alphaMaskCutoff;
+
+        int flags;
+    };
+
+    struct Material
+    {
+        enum AlphaMode
+        {
+            ALPHAMODE_OPAQUE,
+            ALPHAMODE_MASK,
+            ALPHAMODE_BLEND
+        };
+
+        AlphaMode alphaMode       = ALPHAMODE_OPAQUE;
+        float alphaCutoff         = 1.0f;
+        float metallicFactor      = 1.0f;
+        float roughnessFactor     = 1.0f;
+        glm::vec4 baseColorFactor = glm::vec4(1.0f);
+        glm::vec4 emissiveFactor  = glm::vec4(0.0f);
+        GlTFTexture* baseColorTexture;
+        GlTFTexture* metallicRoughnessTexture;
+        GlTFTexture* normalTexture;
+        GlTFTexture* occlusionTexture;
+        GlTFTexture* emissiveTexture;
+        bool doubleSided = false;
+
+        struct TexCoordSets
+        {
+            uint8_t baseColor          = 0;
+            uint8_t metallicRoughness  = 0;
+            uint8_t specularGlossiness = 0;
+            uint8_t normal             = 0;
+            uint8_t occlusion          = 0;
+            uint8_t emissive           = 0;
+        } texCoordSets;
+
+        struct Extension
+        {
+            GlTFTexture* specularGlossinessTexture;
+            GlTFTexture* diffuseTexture;
+            glm::vec4 diffuseFactor  = glm::vec4(1.0f);
+            glm::vec3 specularFactor = glm::vec3(0.0f);
+        } extension;
+
+        struct PbrWorkflows
+        {
+            bool metallicRoughness  = true;
+            bool specularGlossiness = false;
+        } pbrWorkflows;
+
+        vk::DescriptorSet descriptorSet = nullptr;
+        int index                       = 0;
+        bool unlit                      = false;
+        float emissiveStrength          = 1.0f;
     };
 
     struct alignas(16) Vertex
     {
-        glm::vec3 position;
-        float uv_x;
+        // TODO(aether) these manual pads might be unnecessary
+        glm::vec3 pos;
+        float pad1;
         glm::vec3 normal;
-        float uv_y;
-        glm::vec4 tangent;
+        float pad2;
+        glm::vec2 uv0;
+        glm::vec2 pad3;
+        glm::vec2 uv1;
+        glm::vec2 pad4;
+        glm::uvec4 joint0;
+        glm::vec4 weight0;
         glm::vec4 color;
+        glm::vec4 tangent;
     };
 
     struct Primitive
     {
+        Primitive(uint32_t firstIndex, uint32_t indexCount, uint32_t vertexCount, Material& material);
+
+        void setBoundingBox(glm::vec3 min, glm::vec3 max);
+
         uint32_t firstIndex;
         uint32_t indexCount;
-        int32_t materialIndex;
+        uint32_t vertexCount;
+
+        Material* material;
+
+        bool hasIndices;
+
+        BoundingBox bb;
     };
 
     struct Mesh
     {
+        Mesh() = default;
+
+        Mesh(Allocator& allocator, glm::mat4 matrix);
+        ~Mesh() = default;
+
+        Mesh(Mesh const&)            = delete;
+        Mesh& operator=(Mesh const&) = delete;
+
+        Mesh(Mesh&&)            = default;
+        Mesh& operator=(Mesh&&) = default;
+
+        void setBoundingBox(glm::vec3 min, glm::vec3 max);
+
+        Allocator* allocator;
+
         std::vector<Primitive> primitives;
-    };
 
-    struct Texture
-    {
-        uint32_t imageIndex;
-        uint32_t samplerIndex;
-    };
+        BoundingBox bb;
+        BoundingBox aabb;
 
-    struct GlTFNode
-    {
-        GlTFNode* parent;
-        std::vector<GlTFNode*> children;
-        Mesh mesh;
-        glm::mat4 transformation;
-
-        ~GlTFNode()
+        struct UniformBuffer
         {
-            for (auto& child : children)
-            {
-                delete child;
-            }
-        }
+            GPUBuffer buffer;
+            VkDescriptorBufferInfo descriptor;
+            VkDescriptorSet descriptorSet;
+            void* mapped;
+        } uniformBuffer;
+
+        struct UniformBlock
+        {
+            glm::mat4 matrix;
+            glm::mat4 jointMatrix[kMaxNumJoints] {};
+            uint32_t jointcount { 0 };
+        } uniformBlock;
     };
 
-    class GlTFScene
+    struct Skin
     {
-    public:
-        GlTFScene() = default;
+        std::string name;
+        Node* skeletonRoot = nullptr;
 
-        GlTFScene(Device& device,
-                  CommandManager& cmdManager,
-                  Allocator& allocator,
-                  vk::DescriptorSetLayout materialDescriptorLayout,
-                  Image& dummyTexture,
-                  vk::Sampler dummySampler,
-                  std::filesystem::path path);
+        std::vector<glm::mat4> inverseBindMatrices;
+        std::vector<Node*> joints;
+    };
 
-        ~GlTFScene()
+    struct Node
+    {
+        void update();
+
+        ~Node()
         {
-            for (auto node : m_nodes)
+            for (auto& children : children)
             {
-                if (node)
-                {
-                    delete node;
-                }
+                delete children;
             }
         };
 
-        GlTFScene(GlTFScene const&) = delete;
-        GlTFScene(GlTFScene&&)      = default;
+        glm::mat4 localMatrix();
+        glm::mat4 getMatrix();
 
-        GlTFScene& operator=(GlTFScene const&) = delete;
-        GlTFScene& operator=(GlTFScene&&)      = default;
+        std::string name;
 
-        void draw(vk::CommandBuffer commandBuffer,
-                  vk::Pipeline pipeline,
-                  vk::PipelineLayout pipelineLayout,
-                  vk::DescriptorSet sceneDataDescriptorSet);
+        Node* parent;
+        std::vector<Node*> children;
 
-        auto getVertexBufferAddress() const -> size_t { return m_vertexBufferAddress; }
+        uint32_t index;
+        glm::mat4 matrix;
 
-        auto getMaterialBufferAddress() const -> size_t { return m_materialBufferAddress; }
+        std::unique_ptr<Mesh> mesh;
 
-        auto getLastDrawCount() const -> uint32_t { return m_drawCount; }
+        Skin* skin;
+        int32_t skinIndex = -1;
 
-        auto getLastTriangleCount() const -> uint64_t { return m_triangleCount; }
+        glm::vec3 translation {};
+        glm::vec3 scale { 1.0f };
+        glm::dquat rotation {};
 
-    private:
-        void loadImages(tinygltf::Model& input);
+        BoundingBox bvh;
+        BoundingBox aabb;
 
-        void loadTextures(tinygltf::Model& input);
+        glm::mat4 cachedLocalMatrix { glm::mat4(1.0f) };
+        glm::mat4 cachedMatrix { glm::mat4(1.0f) };
 
-        void loadMaterials(tinygltf::Model& input);
+        bool useCachedMatrix { false };
+    };
 
-        void loadSamplers(tinygltf::Model& input);
+    struct AnimationChannel
+    {
+        enum PathType
+        {
+            TRANSLATION,
+            ROTATION,
+            SCALE
+        };
 
-        void loadNode(tinygltf::Node const& inputNode,
-                      tinygltf::Model const& input,
-                      GlTFNode* parent,
-                      std::vector<uint32_t>& indexBuffer,
-                      std::vector<Vertex>& vertexBuffer);
+        PathType path;
+        Node* node;
+        uint32_t samplerIndex;
+    };
 
-        void drawNode(vk::CommandBuffer commandBuffer,
-                      vk::Pipeline pipeline,
-                      vk::PipelineLayout pipelineLayout,
-                      vk::DescriptorSet sceneDataDescriptorSet,
-                      GlTFNode* node);
+    struct AnimationSampler
+    {
+        enum InterpolationType
+        {
+            LINEAR,
+            STEP,
+            CUBICSPLINE
+        };
 
-        Device* m_device { nullptr };
-        CommandManager* m_commandManager { nullptr };
-        Allocator* m_allocator { nullptr };
+        InterpolationType interpolation;
+        std::vector<float> inputs;
+        std::vector<glm::vec4> outputsVec4;
+        std::vector<float> outputs;
+        glm::vec4 cubicSplineInterpolation(size_t index, float time, uint32_t stride);
+        void translate(size_t index, float time, Node* node);
+        void scale(size_t index, float time, Node* node);
+        void rotate(size_t index, float time, Node* node);
+    };
 
-        vk::DescriptorSetLayout m_materialDescriptorLayout { nullptr };
-        vk::Sampler m_dummySampler { nullptr };
-        Image* m_dummyTexture { nullptr };
+    struct Animation
+    {
+        std::string name;
+        std::vector<AnimationSampler> samplers;
+        std::vector<AnimationChannel> channels;
+        float start = std::numeric_limits<float>::max();
+        float end   = std::numeric_limits<float>::min();
+    };
 
-        GPUBuffer m_vertexBuffer;
-        GPUBuffer m_indexBuffer;
+    struct Model
+    {
+        Model(Device& device, Allocator& allocator, CommandManager& cmdManager)
+            : device { &device }, allocator { &allocator }, cmdManager { &cmdManager } {};
 
-        // TODO(aether) this is, for the moment, immutable
-        // TODO(aether) how about we dont keep the host material buffer
-        // If we need to change the one on the vram, we copy it over first, then we modify and re-upload just the changed
-        // region using BufferCopyRegion or something
-        // or instead of the materials we can store more a light-weight array that stores the range of each of the
-        // materials on the GPU and whenever material n needs to be modified, we just memcpy it into the
-        // (n*sizeof(Material), (n+1)*sizeof(Material)) region of the material buffer on the vram
-        // But of course with this, deleting/creating new materials will become more cumbersome
-        GPUBuffer m_materialBuffer;
-        GPUBuffer m_hostMaterialBuffer;
+        Device* device;
+        Allocator* allocator;
+        CommandManager* cmdManager;
 
-        size_t m_indexCount;
+        GPUBuffer indices;
+        GPUBuffer vertices;
 
-        std::vector<Image> m_images;
-        std::vector<Texture> m_textures;
-        std::vector<GlTFNode*> m_nodes;
-        std::vector<vk::DescriptorSet> m_materialDescriptors;
-        std::vector<vk::raii::Sampler> m_samplers;
+        size_t vertexBufferAddress { 0 };
 
-        DescriptorAllocator m_descriptorAllocator;
+        glm::mat4 aabb;
 
-        uint32_t m_drawCount { 0 };
-        size_t m_triangleCount { 0 };
+        std::vector<Node*> nodes;
+        std::vector<Node*> linearNodes;
 
-        size_t m_vertexBufferAddress { 0 }, m_materialBufferAddress { 0 };
+        std::vector<Skin*> skins;
+
+        std::vector<GlTFTexture> textures;
+        std::vector<TextureSampler> textureSamplers;
+        std::vector<Material> materials;
+        std::vector<Animation> animations;
+        std::vector<std::string> extensions;
+
+        struct Dimensions
+        {
+            glm::vec3 min = glm::vec3(std::numeric_limits<float>::max());
+            glm::vec3 max = glm::vec3(-std::numeric_limits<float>::max());
+        } dimensions;
+
+        struct LoaderInfo
+        {
+            uint32_t* indexBuffer;
+            Vertex* vertexBuffer;
+            size_t indexPos  = 0;
+            size_t vertexPos = 0;
+        };
+
+        std::string filePath;
+
+        void destroy();
+
+        void loadNode(Node* parent,
+                      tinygltf::Node const& node,
+                      uint32_t nodeIndex,
+                      tinygltf::Model const& model,
+                      LoaderInfo& loaderInfo,
+                      float globalscale);
+
+        void getNodeProps(tinygltf::Node const& node,
+                          tinygltf::Model const& model,
+                          size_t& vertexCount,
+                          size_t& indexCount);
+
+        void loadSkins(tinygltf::Model& gltfModel);
+
+        void loadTextures(tinygltf::Model& gltfModel);
+
+        vk::SamplerAddressMode getVkWrapMode(int32_t wrapMode);
+
+        vk::Filter getVkFilterMode(int32_t filterMode);
+
+        void loadTextureSamplers(tinygltf::Model& gltfModel);
+
+        void loadMaterials(tinygltf::Model& gltfModel);
+
+        void loadAnimations(tinygltf::Model& gltfModel);
+
+        void loadFromFile(std::string filename, float scale = 1.0f);
+
+        void drawNode(Node* node, vk::CommandBuffer commandBuffer);
+
+        void draw(vk::CommandBuffer commandBuffer);
+
+        void calculateBoundingBox(Node* node, Node* parent);
+
+        void getSceneDimensions();
+
+        void updateAnimation(uint32_t index, float time);
+
+        Node* findNode(Node* parent, uint32_t index);
+
+        Node* nodeFromIndex(uint32_t index);
     };
 }  // namespace renderer::backend

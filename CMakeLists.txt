@@ -64,6 +64,7 @@ list(APPEND SOURCE_FILES
 # )
 
 find_package(ASSIMP REQUIRED)
+find_package(Threads REQUIRED)
 
 list(APPEND LIBS
     spdlog
@@ -77,6 +78,7 @@ list(APPEND LIBS
     GPUOpen::VulkanMemoryAllocator
     tinygltf
     assimp
+    basisu
 )
 
 if (MSVC)
@@ -86,6 +88,7 @@ else()
 endif()
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
+
 target_link_libraries(${PROJECT_NAME} ${LIBS})
 target_compile_definitions(
     ${PROJECT_NAME} PUBLIC FMT_EXCEPTIONS=0
@@ -113,7 +116,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE "./include")
 if (MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE
         /std:c++latest /arch:AVX2
-        $<$<CONFIG:Release>:/EHs-c- /D_HAS_EXCEPTIONS=0>)
+        $<$<CONFIG:Release>:/O3 /EHs-c- /D_HAS_EXCEPTIONS=0>)
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE
         -std=c++23 -Wall -Wunused -mavx2 -Werror

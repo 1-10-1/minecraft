@@ -138,7 +138,7 @@ namespace renderer::backend
 
         GPUBuffer m_gpuSceneDataBuffer, m_lightDataBuffer;
 
-        GlTFScene m_gltfScene {};
+        // GlTFScene m_gltfScene {};
 
         std::array<FrameResources, kNumFramesInFlight> m_frameResources {};
 

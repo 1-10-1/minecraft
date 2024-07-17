@@ -225,18 +225,19 @@ namespace renderer::backend
 
         [[nodiscard]] auto getImage() const -> BasicImage const& { return m_image; }
 
+        [[nodiscard]] auto getMipLevels() const -> uint32_t { return m_mipLevels; }
+
+        // FIXME(aether) handle mipmapping in this class itself
+        void setMipLevels(uint32_t levels) { m_mipLevels = levels; }
+
     private:
         Device* m_device { nullptr };
         Allocator* m_allocator { nullptr };
         CommandManager* m_commandManager { nullptr };
 
-        void generateMipmaps(ScopedCommandBuffer& commandBuffer,
-                             vk::Image image,
-                             vk::Extent2D dimensions,
-                             vk::Format imageFormat,
-                             uint32_t mipLevels);
+        std::string m_path = "<buffer>";
 
-        std::string m_path;
+        uint32_t m_mipLevels { 0 };
 
         BasicImage m_image;
     };

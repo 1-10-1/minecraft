@@ -49,5 +49,9 @@ add_subdirectory(fastgltf)
 
 # Tiny glTF
 set(TINYGLTF_INSTALL OFF)
+set(TINYGLTF_ENABLE_DRACO ON)
 add_subdirectory(tinygltf)
+
+# Basis Universal Codec
+add_subdirectory(basisu)
 
