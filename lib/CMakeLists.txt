@@ -9,8 +9,8 @@ add_subdirectory(spdlog)
 add_subdirectory(glm)
 
 # GLFW
-set(GLFW_BUILD_EXAMPLES ON)
-set(GLFW_BUILD_TESTS ON)
+set(GLFW_BUILD_EXAMPLES OFF)
+set(GLFW_BUILD_TESTS OFF)
 add_subdirectory(glfw)
 
 # Tiny OBJ Loader

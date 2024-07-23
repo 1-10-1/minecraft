@@ -59,13 +59,11 @@ namespace logger
 
         if constexpr (kDebug)
         {
-            std::string simplifiedFuncSig = simplifyFunctionSignature(fmtstr.location.function_name());
-
             Logger::get()->log(
                 spdlog::source_loc(
                     std::string_view(fmtstr.location.file_name()).substr(std::size(ROOT_SOURCE_PATH)).data(),
                     static_cast<int>(fmtstr.location.line()),
-                    simplifiedFuncSig.c_str()),
+                    fmtstr.location.function_name()),
                 lvl,
                 std::format(fmtstr.message, std::forward<Args>(args)...));
         }
@@ -88,9 +86,8 @@ namespace logger
         {
             if (std::string_view filename = location.filename; filename != "")
             {
-                std::string simplifiedFuncSig = simplifyFunctionSignature(location.funcname);
-                location.funcname             = simplifiedFuncSig.c_str();
-                location.filename             = filename.substr(std::size(ROOT_SOURCE_PATH)).data();
+                location.funcname = location.funcname;
+                location.filename = filename.substr(std::size(ROOT_SOURCE_PATH)).data();
             }
             Logger::get()->log(location, lvl, std::format(fmtstr, std::forward<Args>(args)...));
         }
@@ -150,20 +147,4 @@ namespace logger
     {
         log<level::critical>(formatString, std::forward<Args>(args)...);
     }
-
-    constexpr auto simplifyFunctionSignature(std::string const& sig) -> std::string
-    {
-        size_t param_begin = sig.find_first_of('(');
-        size_t first_space = sig.find_first_of(' ');
-
-        bool isConstructorDeconstructor = first_space == std::string::npos || first_space > param_begin;
-
-        if (isConstructorDeconstructor)
-        {
-            return sig.substr(0, param_begin);
-        }
-
-        return sig.substr(first_space + 1, param_begin - first_space - 1);
-    }
-
 }  // namespace logger

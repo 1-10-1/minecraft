@@ -9,6 +9,7 @@
 #include <stb_image.h>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan_structs.hpp>
 
 namespace
 {
@@ -55,7 +56,8 @@ namespace renderer::backend
                            vk::SampleCountFlagBits sampleCount,
                            vk::ImageUsageFlags usageFlags,
                            vk::ImageAspectFlags aspectFlags,
-                           uint32_t mipLevels)
+                           uint32_t mipLevels,
+                           std::string_view name)
         : m_device { &device },
           m_allocator { &allocator },
           m_format { format },
@@ -66,6 +68,11 @@ namespace renderer::backend
           m_dimensions { dimensions }
     {
         create();
+
+        if (!name.empty())
+        {
+            setName(name);
+        }
     }
 
     BasicImage::~BasicImage()

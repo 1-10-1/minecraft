@@ -31,6 +31,14 @@ namespace
                             VkDebugUtilsMessengerCallbackDataEXT const* pCallbackData,
                             void* pUserData) -> VkBool32;
 
+    constexpr std::array<vk::ValidationFeatureEnableEXT, 0> enabledValidationFeatures {};
+
+    // constexpr std::array enabledValidationFeatures {
+    //     vk::ValidationFeatureEnableEXT::eBestPractices,
+    //     vk::ValidationFeatureEnableEXT::eDebugPrintf,
+    //     vk::ValidationFeatureEnableEXT::eSynchronizationValidation,
+    // };
+
     vk::DebugUtilsMessengerCreateInfoEXT constexpr debugMessengerInfo {
         .messageSeverity = vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose |
                            vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning |
@@ -41,7 +49,8 @@ namespace
                        vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance |
                        vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding,
 
-        .pfnUserCallback = validationLayerCallback
+        .pfnUserCallback = validationLayerCallback,
+
     };
 
 #if DEBUG
@@ -102,13 +111,27 @@ namespace renderer::backend
             }
         }
 
+        // clang-format off
         m_handle = context.createInstance(
-                       vk::InstanceCreateInfo { .pApplicationInfo        = &applicationInfo,
-                                                .enabledLayerCount       = utils::size(m_validationLayers),
-                                                .ppEnabledLayerNames     = m_validationLayers.data(),
-                                                .enabledExtensionCount   = utils::size(requiredExtensions),
-                                                .ppEnabledExtensionNames = requiredExtensions.data() }) >>
-                   ResultChecker();
+            vk::StructureChain<vk::InstanceCreateInfo, vk::ValidationFeaturesEXT>(
+                {
+                    {
+                        .pApplicationInfo        = &applicationInfo,
+                        .enabledLayerCount       = utils::size(m_validationLayers),
+                        .ppEnabledLayerNames     = m_validationLayers.data(),
+                        .enabledExtensionCount   = utils::size(requiredExtensions),
+                        .ppEnabledExtensionNames = requiredExtensions.data()
+                    },
+                    {
+                        .enabledValidationFeatureCount  = utils::size(enabledValidationFeatures),
+                        .pEnabledValidationFeatures     = enabledValidationFeatures.data(),
+                        .disabledValidationFeatureCount = 0,
+                        .pDisabledValidationFeatures    = nullptr
+                    }
+                }
+            ).get<vk::InstanceCreateInfo>()
+        ) >> ResultChecker();
+        // clang-format on
 
         if constexpr (kDebug)
         {

@@ -1,3 +1,4 @@
+#include "mc/renderer/backend/allocator.hpp"
 #include <mc/renderer/backend/buffer.hpp>
 #include <mc/renderer/backend/command.hpp>
 #include <mc/renderer/backend/vk_checker.hpp>
@@ -30,6 +31,18 @@ namespace renderer::backend
                                   &m_allocation,
                                   &m_allocInfo) == VK_SUCCESS);
     }
+
+    GPUBuffer::GPUBuffer(Device& device,
+                         Allocator& allocator,
+                         std::string_view name,
+                         size_t allocSize,
+                         vk::BufferUsageFlags bufferUsage,
+                         VmaMemoryUsage memoryUsage,
+                         VmaAllocationCreateFlags allocFlags)
+        : GPUBuffer(allocator, allocSize, bufferUsage, memoryUsage, allocFlags)
+    {
+        setName(device, name);
+    };
 
     GPUBuffer::~GPUBuffer()
     {

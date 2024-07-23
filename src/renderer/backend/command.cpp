@@ -29,6 +29,11 @@ namespace renderer::backend
 
     ScopedCommandBuffer::~ScopedCommandBuffer()
     {
+        if (!*m_handle)
+        {
+            return;
+        }
+
         m_handle.end();
 
         std::array cmdSubmits { vk::CommandBufferSubmitInfo().setCommandBuffer(m_handle) };

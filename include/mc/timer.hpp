@@ -52,7 +52,8 @@ public:
     void unpause();
 
 private:
-    std::chrono::time_point<Clock> m_baseTimePoint, m_pauseTimePoint, m_prevTimePoint, m_latestTimePoint;
+    std::chrono::time_point<Clock> m_baseTimePoint { Clock::now() }, m_pauseTimePoint { m_baseTimePoint },
+        m_prevTimePoint { m_baseTimePoint }, m_latestTimePoint { m_baseTimePoint };
 
     bool m_isPaused { false };
     Milliseconds m_deltaTime { 0.0 }, m_pauseTime { 0.0 };

@@ -1,3 +1,4 @@
+#include "mc/renderer/backend/buffer.hpp"
 #include <mc/renderer/backend/allocator.hpp>
 #include <mc/renderer/backend/gltfloader.hpp>
 #include <mc/renderer/backend/renderer_backend.hpp>
@@ -160,6 +161,7 @@ namespace renderer::backend
                     format       = desiredFormat;
                 }
             }
+
             // Ericsson texture compression
             if (deviceFeatures.textureCompressionETC2)
             {
@@ -169,6 +171,10 @@ namespace renderer::backend
                     format       = desiredFormat;
                 }
             }
+
+            logger::info("Found compressed gltf texture, using format {} (transcoder format {})",
+                         magic_enum::enum_name(format),
+                         magic_enum::enum_name(targetFormat));
 
             // TODO(aether) PowerVR texture compression support needs to be checked
             // via an extension (VK_IMG_FORMAT_PVRTC_EXTENSION_NAME)
@@ -203,7 +209,9 @@ namespace renderer::backend
                 totalBufferSize += numBlocksOrPixels * bytesPerBlockOrPixel;
             }
 
-            GPUBuffer stagingBuffer(*m_allocator,
+            GPUBuffer stagingBuffer(*m_device,
+                                    *m_allocator,
+                                    "Image staging buffer (compressed)",
                                     totalBufferSize,
                                     vk::BufferUsageFlagBits::eTransferSrc,
                                     VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
@@ -242,7 +250,8 @@ namespace renderer::backend
                                vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst |
                                    vk::ImageUsageFlagBits::eSampled,
                                vk::ImageAspectFlagBits::eColor,
-                               mipLevels);
+                               mipLevels,
+                               std::format("Compressed gltf texture ({})", gltfimage.name));
 
             ScopedCommandBuffer copyCmd(
                 device, cmdManager.getTransferCmdPool(), device.getTransferQueue(), true);
@@ -357,7 +366,9 @@ namespace renderer::backend
                               (vk::FormatFeatureFlagBits::eBlitSrc | vk::FormatFeatureFlagBits::eBlitDst),
                           "Blitting is not supported");
 
-            GPUBuffer stagingBuffer(*m_allocator,
+            GPUBuffer stagingBuffer(*m_device,
+                                    *m_allocator,
+                                    "Image staging buffer (uncompressed)",
                                     bufferSize,
                                     vk::BufferUsageFlagBits::eTransferSrc,
                                     VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
@@ -381,7 +392,8 @@ namespace renderer::backend
                                vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst |
                                    vk::ImageUsageFlagBits::eSampled,
                                vk::ImageAspectFlagBits::eColor,
-                               mipLevels);
+                               mipLevels,
+                               std::format("Uncompressed gltf texture ({})", gltfimage.uri));
 
             ScopedCommandBuffer cmdBuf(
                 device, cmdManager.getTransferCmdPool(), device.getTransferQueue(), true);
@@ -446,8 +458,6 @@ namespace renderer::backend
 
             cmdBuf =
                 ScopedCommandBuffer(device, cmdManager.getTransferCmdPool(), device.getTransferQueue(), true);
-
-            stagingBuffer = {};
 
             // Generate the mip chain (glTF uses jpg and png, so we need to create this manually)
             for (uint32_t i = 1; i < mipLevels; i++)
@@ -558,11 +568,11 @@ namespace renderer::backend
                       .addressModeU     = textureSampler.addressModeU,
                       .addressModeV     = textureSampler.addressModeV,
                       .addressModeW     = textureSampler.addressModeW,
-                      .compareOp        = vk::CompareOp::eNever,
-                      .borderColor      = vk::BorderColor::eFloatOpaqueWhite,
                       .anisotropyEnable = VK_TRUE,
                       .maxAnisotropy    = 8.0f,
+                      .compareOp        = vk::CompareOp::eNever,
                       .maxLod           = static_cast<float>(mipLevels),
+                      .borderColor      = vk::BorderColor::eFloatOpaqueWhite,
                   }) >>
                   ResultChecker();
 
@@ -575,11 +585,14 @@ namespace renderer::backend
     }
 
     // Primitive
-    Primitive::Primitive(uint32_t firstIndex, uint32_t indexCount, uint32_t vertexCount, Material& material)
+    Primitive::Primitive(uint32_t firstIndex,
+                         uint32_t indexCount,
+                         uint32_t vertexCount,
+                         uint32_t materialIndex)
         : firstIndex { firstIndex },
           indexCount { indexCount },
           vertexCount { vertexCount },
-          material { &material }
+          materialIndex { materialIndex }
     {
         hasIndices = indexCount > 0;
     };
@@ -826,31 +839,17 @@ namespace renderer::backend
         }
     }
 
-    // Model
-    void Model::destroy()
+    Model::~Model()
     {
-        indices  = {};
-        vertices = {};
-        textures.resize(0);
-        textureSamplers.resize(0);
-
         for (auto node : nodes)
         {
             delete node;
         }
 
-        nodes.resize(0);
-        materials.resize(0);
-        animations.resize(0);
-        linearNodes.resize(0);
-        extensions.resize(0);
-
         for (auto skin : skins)
         {
             delete skin;
         }
-
-        skins.resize(0);
     };
 
     void Model::loadNode(Node* parent,
@@ -1192,7 +1191,7 @@ namespace renderer::backend
                     indexStart,
                     indexCount,
                     vertexCount,
-                    primitive.material > -1 ? materials[primitive.material] : materials.back());
+                    primitive.material > -1 ? primitive.material : materials.size());
 
                 newPrimitive.setBoundingBox(posMin, posMax);
             }
@@ -1301,6 +1300,7 @@ namespace renderer::backend
         for (tinygltf::Texture& tex : gltfModel.textures)
         {
             int source = tex.source;
+
             // If this texture uses the KHR_texture_basisu, we need to get the source index from the extension structure
             if (tex.extensions.find("KHR_texture_basisu") != tex.extensions.end())
             {
@@ -1387,6 +1387,11 @@ namespace renderer::backend
 
     void Model::loadMaterials(tinygltf::Model& gltfModel)
     {
+        materials.reserve(gltfModel.materials.size() + 1);
+
+        // Default material
+        materials.push_back(Material());
+
         for (tinygltf::Material& mat : gltfModel.materials)
         {
             Material material {};
@@ -1536,9 +1541,6 @@ namespace renderer::backend
             material.index = static_cast<uint32_t>(materials.size());
             materials.push_back(material);
         }
-
-        // Push a default material at the end of the list for meshes with no material assigned
-        materials.push_back(Material());
     }
 
     void Model::loadAnimations(tinygltf::Model& gltfModel)
@@ -1758,6 +1760,7 @@ namespace renderer::backend
             tinygltf::Node const node = gltfModel.nodes[scene.nodes[i]];
             loadNode(nullptr, node, scene.nodes[i], gltfModel, loaderInfo, scale);
         }
+
         if (gltfModel.animations.size() > 0)
         {
             loadAnimations(gltfModel);
@@ -1786,7 +1789,9 @@ namespace renderer::backend
         ScopedCommandBuffer cmdBuf(
             *device, cmdManager->getTransferCmdPool(), device->getTransferQueue(), true);
 
-        GPUBuffer vertexStaging(*allocator,
+        GPUBuffer vertexStaging(*device,
+                                *allocator,
+                                "Vertex staging",
                                 vertexBufferSize,
                                 vk::BufferUsageFlagBits::eTransferSrc,
                                 VMA_MEMORY_USAGE_AUTO,
@@ -1796,7 +1801,9 @@ namespace renderer::backend
         std::memcpy(vertexStaging.getMappedData(), loaderInfo.vertexBuffer, vertexBufferSize);
 
         vertices =
-            GPUBuffer(*allocator,
+            GPUBuffer(*device,
+                      *allocator,
+                      "Main vertex buffer",
                       vertexBufferSize,
                       vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress,
                       VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
@@ -1809,7 +1816,9 @@ namespace renderer::backend
 
         if (indexBufferSize > 0)
         {
-            GPUBuffer indexStaging(*allocator,
+            GPUBuffer indexStaging(*device,
+                                   *allocator,
+                                   "Index staging",
                                    indexBufferSize,
                                    vk::BufferUsageFlagBits::eTransferSrc,
                                    VMA_MEMORY_USAGE_AUTO,
@@ -1818,10 +1827,11 @@ namespace renderer::backend
 
             std::memcpy(indexStaging.getMappedData(), loaderInfo.indexBuffer, indexBufferSize);
 
-            indices = GPUBuffer(*allocator,
+            indices = GPUBuffer(*device,
+                                *allocator,
+                                "Main index buffer",
                                 indexBufferSize,
-                                vk::BufferUsageFlagBits::eTransferDst |
-                                    vk::BufferUsageFlagBits::eShaderDeviceAddress,
+                                vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
                                 VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
                                 VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
 
@@ -1834,6 +1844,9 @@ namespace renderer::backend
         delete[] loaderInfo.indexBuffer;
 
         getSceneDimensions();
+
+        createMaterialBuffer();
+        setupDescriptors();
     }
 
     void Model::drawNode(Node* node, vk::CommandBuffer commandBuffer)
@@ -2021,4 +2034,194 @@ namespace renderer::backend
         return nodeFound;
     }
 
+    void Model::createMaterialBuffer()
+    {
+        std::vector<ShaderMaterial> shaderMaterials {};
+
+        for (auto& material : materials)
+        {
+            ShaderMaterial shaderMaterial {};
+
+            shaderMaterial.emissiveFactor   = material.emissiveFactor;
+            shaderMaterial.emissiveStrength = material.emissiveStrength;
+
+            // To save space, availabilty and texture coordinate set are combined
+            // -1 = texture not used for this material, >= 0 texture used and index of
+            // texture coordinate set
+
+            shaderMaterial.colorTextureSet =
+                material.baseColorTexture != nullptr ? material.texCoordSets.baseColor : -1;
+
+            shaderMaterial.normalTextureSet =
+                material.normalTexture != nullptr ? material.texCoordSets.normal : -1;
+
+            shaderMaterial.occlusionTextureSet =
+                material.occlusionTexture != nullptr ? material.texCoordSets.occlusion : -1;
+
+            shaderMaterial.emissiveTextureSet =
+                material.emissiveTexture != nullptr ? material.texCoordSets.emissive : -1;
+
+            shaderMaterial.alphaMask = static_cast<float>(material.alphaMode == Material::ALPHAMODE_MASK);
+            shaderMaterial.alphaMaskCutoff = material.alphaCutoff;
+
+            if (material.pbrWorkflows.metallicRoughness)
+            {
+                // Metallic roughness workflow
+                shaderMaterial.workflow        = static_cast<float>(PBRWorkflows::MetallicRoughness);
+                shaderMaterial.baseColorFactor = material.baseColorFactor;
+                shaderMaterial.metallicFactor  = material.metallicFactor;
+                shaderMaterial.roughnessFactor = material.roughnessFactor;
+                shaderMaterial.physicalDescriptorTextureSet = material.metallicRoughnessTexture != nullptr
+                                                                  ? material.texCoordSets.metallicRoughness
+                                                                  : -1;
+                shaderMaterial.colorTextureSet =
+                    material.baseColorTexture != nullptr ? material.texCoordSets.baseColor : -1;
+            }
+            else
+            {
+                if (material.pbrWorkflows.specularGlossiness)
+                {
+                    // Specular glossiness workflow
+                    shaderMaterial.workflow = static_cast<float>(PBRWorkflows::SpecularGlossiness);
+                    shaderMaterial.physicalDescriptorTextureSet =
+                        material.extension.specularGlossinessTexture != nullptr
+                            ? material.texCoordSets.specularGlossiness
+                            : -1;
+                    shaderMaterial.colorTextureSet =
+                        material.extension.diffuseTexture != nullptr ? material.texCoordSets.baseColor : -1;
+                    shaderMaterial.diffuseFactor  = material.extension.diffuseFactor;
+                    shaderMaterial.specularFactor = glm::vec4(material.extension.specularFactor, 1.0f);
+                }
+            }
+
+            shaderMaterials.push_back(shaderMaterial);
+        }
+
+        vk::DeviceSize bufferSize = shaderMaterials.size() * sizeof(ShaderMaterial);
+
+        GPUBuffer stagingBuffer(*allocator,
+                                bufferSize,
+                                vk::BufferUsageFlagBits::eTransferSrc,
+                                VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                                    VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+        std::memcpy(stagingBuffer.getMappedData(), shaderMaterials.data(), bufferSize);
+
+        materialBuffer =
+            GPUBuffer(*allocator,
+                      bufferSize,
+                      vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferDst,
+                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                      VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+
+        materialBufferAddress =
+            device->get().getBufferAddress(vk::BufferDeviceAddressInfo().setBuffer(materialBuffer));
+
+        // TODO(aether) the deconstructor will block until the copy is over
+        // not the most performant approach
+        ScopedCommandBuffer(*device, cmdManager->getTransferCmdPool(), device->getTransferQueue(), true)
+            ->copyBuffer(stagingBuffer, materialBuffer, vk::BufferCopy().setSize(bufferSize));
+    }
+
+    void Model::setupDescriptors()
+    {
+        int imageSamplerCount = materials.size() * 5;
+
+        std::vector<DescriptorAllocator::PoolSizeRatio> sizes {
+            { vk::DescriptorType::eCombinedImageSampler,
+             // TODO(aether)                           vvvvvvvvvvvvvvvvvvvv why?
+              static_cast<float>(imageSamplerCount) /* * kNumFramesInFlight */ }
+        };
+
+        m_materialDescriptorAllocator = DescriptorAllocator(*device, materials.size(), sizes);
+
+        // Per-Material descriptor sets
+        for (auto& material : materials)
+        {
+            material.descriptorSet =
+                m_materialDescriptorAllocator.allocate(*device, m_materialDescriptorSetLayout);
+
+            DescriptorWriter writer;
+
+            // Default the diffuse and metallicRoughness textures initially
+            for (int i = 0; i < 2; ++i)
+            {
+                writer.write_image(i,
+                                   m_dummyImage,
+                                   m_dummySampler,
+                                   vk::ImageLayout::eShaderReadOnlyOptimal,
+                                   vk::DescriptorType::eCombinedImageSampler);
+            }
+
+            std::array texturesToWrite {
+                static_cast<GlTFTexture*>(nullptr),
+                static_cast<GlTFTexture*>(nullptr),
+                material.occlusionTexture,
+                material.emissiveTexture,
+                material.normalTexture,
+            };
+
+            if (material.pbrWorkflows.metallicRoughness)
+            {
+                texturesToWrite[0] = material.baseColorTexture;
+                texturesToWrite[1] = material.metallicRoughnessTexture;
+            }
+            else
+            {
+                texturesToWrite[0] = material.extension.diffuseTexture;
+                texturesToWrite[1] = material.extension.specularGlossinessTexture;
+            }
+
+            for (auto [i, tex] : vi::enumerate(texturesToWrite))
+            {
+                if (!tex)
+                {
+                    writer.write_image(i,
+                                       m_dummyImage,
+                                       m_dummySampler,
+                                       vk::ImageLayout::eShaderReadOnlyOptimal,
+                                       vk::DescriptorType::eCombinedImageSampler);
+
+                    continue;
+                }
+
+                if constexpr (kDebug)
+                {
+                    std::string_view type;
+
+                    switch (i)
+                    {
+                        case 0:
+                            type = "diffuse";
+                            break;
+                        case 1:
+                            type = "metallic/roughness";
+                            break;
+                        case 2:
+                            type = "occlusion";
+                            break;
+                        case 3:
+                            type = "emissive";
+                            break;
+                        case 4:
+                            type = "normal";
+                            break;
+                    }
+
+                    // TODO(aether) add more verbosity to the name of other buffers and images just like here
+                    tex->image.setName(std::format(
+                        "{} (Material #{} {} texture)", tex->image.getName(), material.index, type));
+                }
+
+                writer.write_image(i,
+                                   tex->image.getImageView(),
+                                   tex->sampler,
+                                   vk::ImageLayout::eShaderReadOnlyOptimal,
+                                   vk::DescriptorType::eCombinedImageSampler);
+            }
+
+            writer.update_set(*device, material.descriptorSet);
+        }
+    }
 }  // namespace renderer::backend

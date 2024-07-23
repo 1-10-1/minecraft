@@ -79,6 +79,7 @@ list(APPEND LIBS
     tinygltf
     assimp
     basisu
+    Threads::Threads
 )
 
 if (MSVC)
@@ -119,10 +120,10 @@ if (MSVC)
         $<$<CONFIG:Release>:/O3 /EHs-c- /D_HAS_EXCEPTIONS=0>)
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE
-        -std=c++23 -Wall -Wunused -mavx2 -Werror
+        -std=c++23 -Wall -Wunused -mavx2
         -Wno-format -Wno-switch
         -Wno-deprecated-declarations -march=native -flto=auto
-        -Wno-sign-compare
+        -Wno-sign-compare -pthread
         $<$<CONFIG:Release>:-fno-exceptions -ffast-math -finline-functions>
         $<$<CONFIG:Debug>:-mtune=native -g>) # -fsanitize=address -g -fno-omit-frame-pointer>)
 endif()
@@ -135,7 +136,7 @@ if ((CMAKE_BUILD_TYPE MATCHES Release) OR PROFILED_BUILD)
     endif()
 endif()
 
-target_link_options(${PROJECT_NAME} PRIVATE -flto=auto) #-fsanitize=address -g -fno-omit-frame-pointer)
+target_link_options(${PROJECT_NAME} PRIVATE -pthread -flto=auto) #-fsanitize=address -g -fno-omit-frame-pointer)
 
 file(GLOB SHADER_FILES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/shaders/*")
 

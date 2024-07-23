@@ -9,6 +9,7 @@
 
 #include <unordered_set>
 
+#include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
 namespace
@@ -18,12 +19,9 @@ namespace
     // clang-format off
     constexpr std::array requiredExtensions
     {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-        VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
-        VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
-        VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+        vk::KHRSwapchainExtensionName,
 #if PROFILED
-        VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
+        vk::KHRCalibratedTimestampsExtensionName
 #endif
     };
 

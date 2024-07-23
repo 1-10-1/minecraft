@@ -150,13 +150,72 @@ namespace renderer::backend
         m_stats.drawCount     = 0;
         m_stats.triangleCount = 0;
 
-        m_gltfScene.draw(cmdBuf, m_pipeline, m_pipelineLayout, m_sceneDataDescriptors);
+        // m_gltfScene.draw(cmdBuf, m_pipeline, m_pipelineLayout, m_sceneDataDescriptors);
 
-        m_stats.drawCount += m_gltfScene.getLastDrawCount();
-        m_stats.triangleCount += m_gltfScene.getLastTriangleCount();
+        if (m_scene.indices)
+        {
+            cmdBuf.bindIndexBuffer(m_scene.indices, 0, vk::IndexType::eUint32);
+        }
+
+        cmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
+        for (auto node : m_scene.nodes)
+        {
+            renderNode(cmdBuf, node);
+        }
+
+        // m_stats.drawCount += m_gltfScene.getLastDrawCount();
+        // m_stats.triangleCount += m_gltfScene.getLastTriangleCount();
 
         cmdBuf.endRendering();
     }
+
+    void RendererBackend::renderNode(vk::CommandBuffer cmdBuf, Node* node)
+    {
+        for (Primitive& prim : node->mesh->primitives)
+        {
+            GPUDrawPushConstants pushConstants {
+                // FIXME(aether) where's the model matrix hmm?
+                .materialIndex = prim.materialIndex,
+            };
+
+            cmdBuf.pushConstants(m_pipelineLayout,
+                                 vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                                 0,
+                                 sizeof(GPUDrawPushConstants),
+                                 &pushConstants);
+
+            cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                                      m_pipelineLayout,
+                                      0,
+                                      {
+                                          m_sceneDataDescriptors,
+                                          m_scene.materials[prim.materialIndex].descriptorSet,
+                                      },
+                                      {});
+
+            {
+#if PROFILED
+                auto& tracyCtx = m_frameResources[m_currentFrame].tracyContext;
+#endif
+
+                TracyVkZone(tracyCtx, cmdBuf, "draw call");
+
+                if (prim.hasIndices)
+                {
+                    cmdBuf.drawIndexed(prim.indexCount, 1, prim.firstIndex, 0, 0);
+                }
+                else
+                {
+                    cmdBuf.draw(prim.vertexCount, 1, 0, 0);
+                }
+            }
+        }
+
+        for (auto child : node->children)
+        {
+            renderNode(cmdBuf, child);
+        }
+    };
 
     void RendererBackend::recordCommandBuffer(uint32_t imageIndex)
     {

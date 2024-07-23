@@ -32,15 +32,15 @@ namespace renderer::backend
     void DescriptorWriter::write_buffer(
         int binding, vk::Buffer buffer, size_t size, size_t offset, vk::DescriptorType type)
     {
-        writes.push_back(vk::WriteDescriptorSet()
-                             .setDstBinding(binding)
-                             .setDescriptorCount(1)
-                             .setDescriptorType(type)
-                             .setPBufferInfo(&bufferInfos.emplace_back(vk::DescriptorBufferInfo {
-                                 .buffer = buffer,
-                                 .offset = offset,
-                                 .range  = size,
-                             })));
+        writes[binding] = vk::WriteDescriptorSet()
+                              .setDstBinding(binding)
+                              .setDescriptorCount(1)
+                              .setDescriptorType(type)
+                              .setPBufferInfo(&bufferInfos.emplace_back(vk::DescriptorBufferInfo {
+                                  .buffer = buffer,
+                                  .offset = offset,
+                                  .range  = size,
+                              }));
     }
 
     void DescriptorWriter::write_image(int binding,
@@ -49,15 +49,15 @@ namespace renderer::backend
                                        vk::ImageLayout layout,
                                        vk::DescriptorType type)
     {
-        writes.push_back(vk::WriteDescriptorSet()
-                             .setDstBinding(binding)
-                             .setDescriptorCount(1)
-                             .setDescriptorType(type)
-                             .setPImageInfo(&imageInfos.emplace_back(vk::DescriptorImageInfo {
-                                 .sampler     = sampler,
-                                 .imageView   = image,
-                                 .imageLayout = layout,
-                             })));
+        writes[binding] = vk::WriteDescriptorSet()
+                              .setDstBinding(binding)
+                              .setDescriptorCount(1)
+                              .setDescriptorType(type)
+                              .setPImageInfo(&imageInfos.emplace_back(vk::DescriptorImageInfo {
+                                  .sampler     = sampler,
+                                  .imageView   = image,
+                                  .imageLayout = layout,
+                              }));
     }
 
     void DescriptorWriter::clear()
@@ -69,7 +69,7 @@ namespace renderer::backend
 
     void DescriptorWriter::update_set(vk::raii::Device const& device, vk::DescriptorSet set)
     {
-        device.updateDescriptorSets(writes |
+        device.updateDescriptorSets(writes | vi::values |
                                         vi::transform(
                                             [set](vk::WriteDescriptorSet& write)
                                             {

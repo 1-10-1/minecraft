@@ -1,4 +1,5 @@
 #include "mc/renderer/backend/allocator.hpp"
+#include <chrono>
 #include <mc/asserts.hpp>
 #include <mc/exceptions.hpp>
 #include <mc/logger.hpp>
@@ -163,14 +164,7 @@ namespace renderer::backend
             m_pipeline = GraphicsPipeline(m_device, m_pipelineLayout, pipelineConfig);
         }
 
-        m_gltfScene =
-            GlTFScene(m_device,
-                      m_commandManager,
-                      m_allocator,
-                      m_materialDescriptorLayout,
-                      m_dummyTexture,
-                      m_dummySampler,
-                      std::format("../../gltfSampleAssets/Models/{0}/glTF/{0}.gltf", "DragonDispersion"));
+        loadGltfScene();
 
         m_light = {
             .position    = { 1.5f,                  2.f,               0.f              },
@@ -221,6 +215,45 @@ namespace renderer::backend
             TracyVkDestroy(resource.tracyContext);
         }
 #endif
+    }
+
+    void RendererBackend::loadGltfScene()
+    {
+        m_scene = Model(m_device,
+                        m_allocator,
+                        m_commandManager,
+                        m_materialDescriptorLayout,
+                        m_dummyTexture.getImageView(),
+                        m_dummySampler);
+
+        auto glTFFile =
+            std::filesystem::path(std::format("../../gltfSampleAssets/Models/{0}/glTF/{0}.gltf", "Sponza"));
+
+        logger::info("Loading scene from {}..", glTFFile.c_str());
+
+        m_animationIndex = 0;
+        m_animationTimer = 0.0f;
+
+        auto timerStart = std::chrono::high_resolution_clock::now();
+
+        m_scene.loadFromFile(glTFFile);
+
+        auto timeTaken = std::chrono::duration<double, std::ratio<1, 1>>(
+                             std::chrono::high_resolution_clock::now() - timerStart)
+                             .count();
+
+        logger::info("Took {:.2f}s", timeTaken);
+
+        // Check and list unsupported extensions
+        for (auto& ext : m_scene.extensions)
+        {
+            if (std::find(m_scene.supportedExtensions.begin(), m_scene.supportedExtensions.end(), ext) ==
+                m_scene.supportedExtensions.end())
+            {
+                logger::warn("Unsupported extension {} detected. Scene may not work or display as intended",
+                             ext);
+            }
+        }
     }
 
     void RendererBackend::initDescriptors()
@@ -410,8 +443,8 @@ namespace renderer::backend
             .screenWeight      = static_cast<float>(m_drawImage.getDimensions().width),
             .sunlightDirection = glm::vec3 { -0.2f, -1.0f, -0.3f },
             .screenHeight      = static_cast<float>(m_drawImage.getDimensions().height),
-            .vertexBuffer      = m_gltfScene.getVertexBufferAddress(),
-            .materialBuffer    = m_gltfScene.getMaterialBufferAddress(),
+            .vertexBuffer      = m_scene.vertexBufferAddress,
+            .materialBuffer    = m_scene.materialBufferAddress,
         };
 
         lightUniformData = m_light;

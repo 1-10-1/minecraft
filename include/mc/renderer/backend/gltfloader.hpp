@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buffer.hpp"
+#include "descriptor.hpp"
 #include "image.hpp"
 
 #include <glm/ext/matrix_float4x4.hpp>
@@ -53,18 +54,14 @@ namespace renderer::backend
     {
         GlTFTexture() = default;
 
+        ~GlTFTexture() = default;
+
         GlTFTexture(Device& device,
                     Allocator& allocator,
                     CommandManager& cmdManager,
                     tinygltf::Image& gltfimage,
                     std::string path,
                     TextureSampler textureSampler);
-
-        ~GlTFTexture()
-        {
-            image = {};
-            sampler.clear();
-        };
 
         GlTFTexture(GlTFTexture const&)            = delete;
         GlTFTexture& operator=(GlTFTexture const&) = delete;
@@ -152,6 +149,7 @@ namespace renderer::backend
             glm::vec3 specularFactor = glm::vec3(0.0f);
         } extension;
 
+        // TODO(aether) this is weird, make it an enum instead
         struct PbrWorkflows
         {
             bool metallicRoughness  = true;
@@ -183,7 +181,7 @@ namespace renderer::backend
 
     struct Primitive
     {
-        Primitive(uint32_t firstIndex, uint32_t indexCount, uint32_t vertexCount, Material& material);
+        Primitive(uint32_t firstIndex, uint32_t indexCount, uint32_t vertexCount, uint32_t materialIndex);
 
         void setBoundingBox(glm::vec3 min, glm::vec3 max);
 
@@ -191,7 +189,7 @@ namespace renderer::backend
         uint32_t indexCount;
         uint32_t vertexCount;
 
-        Material* material;
+        uint32_t materialIndex;
 
         bool hasIndices;
 
@@ -330,20 +328,40 @@ namespace renderer::backend
 
     struct Model
     {
-        Model(Device& device, Allocator& allocator, CommandManager& cmdManager)
-            : device { &device }, allocator { &allocator }, cmdManager { &cmdManager } {};
+        Model() = default;
+        ~Model();
 
-        Device* device;
-        Allocator* allocator;
-        CommandManager* cmdManager;
+        Model(Device& device,
+              Allocator& allocator,
+              CommandManager& cmdManager,
+              vk::DescriptorSetLayout materialDescriptorSetLayout,
+              vk::ImageView dummyImage,
+              vk::Sampler dummySampler)
+            : device { &device },
+              allocator { &allocator },
+              cmdManager { &cmdManager },
+              m_materialDescriptorSetLayout { materialDescriptorSetLayout },
+              m_dummyImage { dummyImage },
+              m_dummySampler { dummySampler }
+        {
+        }
+
+        Model(Model&&)            = default;
+        Model& operator=(Model&&) = default;
+
+        Model(Model const&)            = delete;
+        Model& operator=(Model const&) = delete;
 
         GPUBuffer indices;
         GPUBuffer vertices;
+        GPUBuffer materialBuffer;
 
-        size_t vertexBufferAddress { 0 };
+        vk::DeviceSize vertexBufferAddress { 0 };
+        vk::DeviceSize materialBufferAddress { 0 };
 
         glm::mat4 aabb;
 
+        // make nodes a vector of unique ptrs maybe?
         std::vector<Node*> nodes;
         std::vector<Node*> linearNodes;
 
@@ -371,8 +389,6 @@ namespace renderer::backend
 
         std::string filePath;
 
-        void destroy();
-
         void loadNode(Node* parent,
                       tinygltf::Node const& node,
                       uint32_t nodeIndex,
@@ -386,6 +402,8 @@ namespace renderer::backend
                           size_t& indexCount);
 
         void loadSkins(tinygltf::Model& gltfModel);
+
+        void createMaterialBuffer();
 
         void loadTextures(tinygltf::Model& gltfModel);
 
@@ -401,11 +419,14 @@ namespace renderer::backend
 
         void loadFromFile(std::string filename, float scale = 1.0f);
 
+        // These are only called for the skybox, not the scene (for some reason, figure it out)
         void drawNode(Node* node, vk::CommandBuffer commandBuffer);
 
         void draw(vk::CommandBuffer commandBuffer);
 
         void calculateBoundingBox(Node* node, Node* parent);
+
+        void setupDescriptors();
 
         void getSceneDimensions();
 
@@ -414,5 +435,23 @@ namespace renderer::backend
         Node* findNode(Node* parent, uint32_t index);
 
         Node* nodeFromIndex(uint32_t index);
+
+        static constexpr std::array<std::string_view, 4> const supportedExtensions {
+            "KHR_texture_basisu",
+            "KHR_materials_pbrSpecularGlossiness",
+            "KHR_materials_unlit",
+            "KHR_materials_emissive_strength"
+        };
+
+    private:
+        Device* device { nullptr };
+        Allocator* allocator { nullptr };
+        CommandManager* cmdManager { nullptr };
+
+        DescriptorAllocator m_materialDescriptorAllocator {};
+        vk::DescriptorSetLayout m_materialDescriptorSetLayout { nullptr };
+
+        vk::ImageView m_dummyImage { nullptr };
+        vk::Sampler m_dummySampler { nullptr };
     };
 }  // namespace renderer::backend

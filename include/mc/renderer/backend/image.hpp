@@ -11,6 +11,9 @@
 #include <glm/ext/vector_uint2.hpp>
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan_structs.hpp>
+
+// FIXME(aether) the operator= overload does not function as expected with an empty rhs object
 
 namespace renderer::backend
 {
@@ -26,6 +29,11 @@ namespace renderer::backend
         StbiImage(StbiImage&& other) noexcept
             : m_dimensions { other.m_dimensions }, m_size { other.m_size }, m_data { other.m_data }
         {
+            if (m_data == nullptr)
+            {
+                return;
+            }
+
             other.m_dimensions = vk::Extent2D { 0, 0 };
             other.m_size       = 0;
             other.m_data       = nullptr;
@@ -73,13 +81,17 @@ namespace renderer::backend
                    vk::SampleCountFlagBits sampleCount,
                    vk::ImageUsageFlags usageFlags,
                    vk::ImageAspectFlags aspectFlags,
-                   uint32_t mipLevels = 1);
+                   uint32_t mipLevels    = 1,
+                   std::string_view name = {});
 
         ~BasicImage();
 
         auto operator=(BasicImage const&) -> BasicImage& = delete;
         BasicImage(BasicImage const&)                    = delete;
 
+        // TODO(aether) there is something seriously wrong with this and the GPUBuffer class when
+        // you try to assign an object to {} (someImage = {})
+        // It creates a leak, try it
         BasicImage(BasicImage&& other) noexcept
         {
             std::swap(m_device, other.m_device);
@@ -129,6 +141,30 @@ namespace renderer::backend
         [[nodiscard]] operator vk::Image() const { return m_handle; }
 
         [[nodiscard]] auto get() const -> vk::Image { return m_handle; }
+
+        [[nodiscard]] auto getName() const -> std::string_view
+        {
+            VmaAllocationInfo allocInfo;
+            vmaGetAllocationInfo(*m_allocator, m_allocation, &allocInfo);
+
+            return allocInfo.pName;
+        }
+
+        void setName(std::string_view name)
+        {
+            if constexpr (!kDebug)
+            {
+                return;
+            }
+
+            vmaSetAllocationName(*m_allocator, m_allocation, name.data());
+
+            m_device->get().setDebugUtilsObjectNameEXT(
+                vk::DebugUtilsObjectNameInfoEXT()
+                    .setObjectHandle(reinterpret_cast<uint64_t>(m_handle))
+                    .setObjectType(vk::ObjectType::eImage)
+                    .setPObjectName(name.data()));
+        }
 
         [[nodiscard]] auto getImageView() const -> vk::raii::ImageView const&
         {

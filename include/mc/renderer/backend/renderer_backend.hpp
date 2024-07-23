@@ -30,6 +30,11 @@ namespace renderer::backend
 
         uint32_t materialIndex { 0 };
     };
+    enum class PBRWorkflows
+    {
+        MetallicRoughness  = 0,
+        SpecularGlossiness = 1
+    };
 
     struct alignas(16) GPUSceneData
     {
@@ -118,6 +123,9 @@ namespace renderer::backend
         void destroySyncObjects();
         void updateDescriptors(glm::vec3 cameraPos, glm::mat4 model, glm::mat4 view, glm::mat4 projection);
 
+        void loadGltfScene();
+        void renderNode(vk::CommandBuffer cmdBuf, Node* node);
+
         Instance m_instance;
         Surface m_surface;
         Device m_device;
@@ -138,7 +146,7 @@ namespace renderer::backend
 
         GPUBuffer m_gpuSceneDataBuffer, m_lightDataBuffer;
 
-        // GlTFScene m_gltfScene {};
+        Model m_scene {};
 
         std::array<FrameResources, kNumFramesInFlight> m_frameResources {};
 
@@ -155,10 +163,14 @@ namespace renderer::backend
             uint64_t drawCount;
         } m_stats {};
 
+        int32_t m_animationIndex = 0;
+        float m_animationTimer   = 0.0f;
+        bool m_animate           = true;
+
         uint32_t m_currentFrame { 0 };
 
-        bool m_windowResized { false };
-
         uint64_t m_frameCount {};
+
+        bool m_windowResized { false };
     };
 }  // namespace renderer::backend

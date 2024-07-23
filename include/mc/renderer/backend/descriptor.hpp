@@ -2,6 +2,7 @@
 
 #include <deque>
 #include <span>
+#include <unordered_map>
 #include <vector>
 
 #include <vulkan/vulkan_raii.hpp>
@@ -32,9 +33,9 @@ namespace renderer::backend
 
     struct DescriptorWriter
     {
-        std::deque<vk::DescriptorImageInfo> imageInfos;
-        std::deque<vk::DescriptorBufferInfo> bufferInfos;
-        std::vector<vk::WriteDescriptorSet> writes;
+        std::deque<vk::DescriptorImageInfo> imageInfos {};
+        std::deque<vk::DescriptorBufferInfo> bufferInfos {};
+        std::unordered_map<int, vk::WriteDescriptorSet> writes {};
 
         void write_image(int binding,
                          vk::ImageView image,
@@ -62,8 +63,8 @@ namespace renderer::backend
         void clear_pools(vk::raii::Device const& device);
         void destroy_pools(vk::raii::Device const& device);
 
-        auto allocate(vk::raii::Device const& device,
-                      vk::raii::DescriptorSetLayout const& layout) -> vk::DescriptorSet;
+        [[nodiscard]] auto allocate(vk::raii::Device const& device,
+                                    vk::raii::DescriptorSetLayout const& layout) -> vk::DescriptorSet;
 
     private:
         auto get_pool(vk::raii::Device const& device) -> vk::raii::DescriptorPool;
@@ -96,7 +97,7 @@ namespace renderer::backend
         DescriptorAllocator(DescriptorAllocator&&)                    = default;
         auto operator=(DescriptorAllocator&&) -> DescriptorAllocator& = default;
 
-        auto allocate(vk::Device device, vk::DescriptorSetLayout layout) -> vk::DescriptorSet;
+        [[nodiscard]] auto allocate(vk::Device device, vk::DescriptorSetLayout layout) -> vk::DescriptorSet;
 
         void clearDescriptors(vk::raii::Device const& device) { m_pool.reset(); }
 

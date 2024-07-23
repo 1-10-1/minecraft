@@ -16,24 +16,42 @@ layout(push_constant) uniform PushConstants
 };
 
 struct Vertex {
-    vec3 position;
-    float uv_x;
+    vec3 pos;
+    float pad1;
     vec3 normal;
-    float uv_y;
-    vec4 tangent;
+    float pad2;
+    vec2 uv0;
+    vec2 pad3;
+    vec2 uv1;
+    vec2 pad4;
+    uvec4 joint0;
+    vec4 weight0;
     vec4 color;
+    vec4 tangent;
 };
 
 struct Material {
     vec4 baseColorFactor;
+    vec4 emissiveFactor;
+    vec4 diffuseFactor;
+    vec4 specularFactor;
 
-    vec3 emissiveFactor;
+    float workflow;
+
     float metallicFactor;
-
+    float emissiveStrength;
     float roughnessFactor;
-    float occlusionFactor;
-    uint flags;
-    uint pad;
+
+    int colorTextureSet;
+    int normalTextureSet;
+    int occlusionTextureSet;
+    int emissiveTextureSet;
+    int physicalDescriptorTextureSet;
+
+    float alphaMask;
+    float alphaMaskCutoff;
+
+    int flags;
 };
 
 layout(buffer_reference, std430) readonly buffer VertexBuffer {
