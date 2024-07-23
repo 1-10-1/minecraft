@@ -14,8 +14,8 @@ void main() {
     Vertex vertex = sceneData.vertexBuffer.vertices[gl_VertexIndex];
     Material material = sceneData.materialBuffer.materials[materialIndex];
 
-    gl_Position = sceneData.viewProj * /* model * */ vec4(vertex.pos, 1.0);
-    vPosition = /* model * */ vec4(vertex.pos, 1.0);
+    gl_Position = sceneData.viewProj * model * vec4(vertex.pos, 1.0);
+    vPosition = model * vec4(vertex.pos, 1.0);
 
     if ((material.flags & MaterialFeatures_TexcoordVertexAttribute) != 0) {
         vTexcoord0 = vertex.uv0;

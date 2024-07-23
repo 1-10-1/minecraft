@@ -33,13 +33,15 @@ layout(set = 0, binding = 1) uniform PointLight {
 void main() {
     Material material = sceneData.materialBuffer.materials[materialIndex];
 
-    frag_color = material.baseColorFactor == vec4(0.0, 0.0, 0.0, 0.0) ? vec4(1.0, 1.0, 1.0, 1.0) : material.baseColorFactor;
-
-    if ((material.flags & MaterialFeatures_TexcoordVertexAttribute) != 0) {
-        // A default diffuse texture is supplied no matter what
-        frag_color *= texture(diffuseTexture, vTexcoord0);
-    } else {
-        frag_color *= texture(diffuseTexture, gl_FragCoord.xy * 0.0025);
-    }
+    // frag_color = material.baseColorFactor == vec4(0.0, 0.0, 0.0, 0.0) ? vec4(1.0, 1.0, 1.0, 1.0) : material.baseColorFactor;
+    //
+    // if ((material.flags & MaterialFeatures_TexcoordVertexAttribute) != 0) {
+    //     // A default diffuse texture is supplied no matter what
+    //     frag_color *= texture(diffuseTexture, vTexcoord0);
+    // } else {
+    //     frag_color *= texture(diffuseTexture, gl_FragCoord.xy * 0.0025);
+    // }
+    //
+    frag_color = vec4(1.0, 1.0, 1.0, 1.0);
 }
 

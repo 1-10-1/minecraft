@@ -45,11 +45,16 @@ namespace renderer::backend
 
         [[nodiscard]] auto operator->() const -> vk::raii::CommandBuffer const* { return &m_handle; }
 
+        void flush();
+
     private:
         Device const* m_device { nullptr };
 
+        bool m_oneTime { false };
+
         vk::Queue m_queue { nullptr };
 
+        vk::CommandPool m_pool { nullptr };
         vk::raii::CommandBuffer m_handle { nullptr };
     };
 

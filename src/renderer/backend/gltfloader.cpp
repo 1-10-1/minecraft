@@ -330,9 +330,9 @@ namespace renderer::backend
         else
         {
             // Image is a basic glTF format like png or jpg and can be loaded directly via tinyglTF
-            unsigned char* buffer   = nullptr;
-            VkDeviceSize bufferSize = 0;
-            bool deleteBuffer       = false;
+            unsigned char* buffer     = nullptr;
+            vk::DeviceSize bufferSize = 0;
+            bool deleteBuffer         = false;
 
             if (gltfimage.component == 3)
             {
@@ -456,8 +456,7 @@ namespace renderer::backend
                                         .subresourceRange = subresourceRange,
                                     } });
 
-            cmdBuf =
-                ScopedCommandBuffer(device, cmdManager.getTransferCmdPool(), device.getTransferQueue(), true);
+            cmdBuf.flush();
 
             // Generate the mip chain (glTF uses jpg and png, so we need to create this manually)
             for (uint32_t i = 1; i < mipLevels; i++)
@@ -557,8 +556,7 @@ namespace renderer::backend
                                         .subresourceRange = subresourceRange,
                                     } });
 
-            cmdBuf =
-                ScopedCommandBuffer(device, cmdManager.getTransferCmdPool(), device.getTransferQueue(), true);
+            cmdBuf.flush();
         }
 
         sampler = device->createSampler(vk::SamplerCreateInfo {

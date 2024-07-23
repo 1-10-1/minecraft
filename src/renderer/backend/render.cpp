@@ -158,6 +158,7 @@ namespace renderer::backend
         }
 
         cmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
+
         for (auto node : m_scene.nodes)
         {
             renderNode(cmdBuf, node);
@@ -174,7 +175,7 @@ namespace renderer::backend
         for (Primitive& prim : node->mesh->primitives)
         {
             GPUDrawPushConstants pushConstants {
-                // FIXME(aether) where's the model matrix hmm?
+                .model         = node->mesh->uniformBlock.matrix,
                 .materialIndex = prim.materialIndex,
             };
 

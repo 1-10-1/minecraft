@@ -157,7 +157,7 @@ namespace renderer::backend
                     .setColorAttachmentFormat(m_drawImage.getFormat())
                     .setDepthAttachmentFormat(kDepthStencilFormat)
                     .setDepthStencilSettings(true, vk::CompareOp::eGreaterOrEqual)
-                    .setCullingSettings(vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise)
+                    // .setCullingSettings(vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise)
                     .setSampleCount(m_device.getMaxUsableSampleCount())
                     .setSampleShadingSettings(true, 0.1f);
 
@@ -227,7 +227,7 @@ namespace renderer::backend
                         m_dummySampler);
 
         auto glTFFile =
-            std::filesystem::path(std::format("../../gltfSampleAssets/Models/{0}/glTF/{0}.gltf", "Sponza"));
+            std::filesystem::path(std::format("../../gltfSampleAssets/Models/{0}/glTF/{0}.gltf", "Cube"));
 
         logger::info("Loading scene from {}..", glTFFile.c_str());
 

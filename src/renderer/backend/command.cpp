@@ -13,7 +13,7 @@ namespace renderer::backend
                                              vk::raii::CommandPool const& commandPool,
                                              vk::raii::Queue const& queue,
                                              bool oneTimeUse)
-        : m_device { &device }, m_queue { queue }
+        : m_device { &device }, m_oneTime { oneTimeUse }, m_queue { queue }, m_pool { commandPool }
     {
         m_handle = std::move(m_device->get()
                                  .allocateCommandBuffers(vk::CommandBufferAllocateInfo()
@@ -45,6 +45,38 @@ namespace renderer::backend
 
         MC_ASSERT(m_device->get().waitForFences({ fence }, true, std::numeric_limits<uint64_t>::max()) !=
                   vk::Result::eTimeout);
+    }
+
+    void ScopedCommandBuffer::flush()
+    {
+        m_handle.end();
+
+        std::array cmdSubmits { vk::CommandBufferSubmitInfo().setCommandBuffer(m_handle) };
+        std::array submits { vk::SubmitInfo2().setCommandBufferInfos(cmdSubmits) };
+
+        vk::raii::Fence fence = m_device->get().createFence(vk::FenceCreateInfo {}).value();
+
+        MC_ASSERT(m_queue.submit2(submits, fence) == vk::Result::eSuccess);
+
+        MC_ASSERT(m_device->get().waitForFences({ fence }, true, std::numeric_limits<uint64_t>::max()) !=
+                  vk::Result::eTimeout);
+
+        if (m_oneTime)
+        {
+            m_handle = std::move(m_device->get()
+                                     .allocateCommandBuffers(vk::CommandBufferAllocateInfo()
+                                                                 .setCommandPool(m_pool)
+                                                                 .setLevel(vk::CommandBufferLevel::ePrimary)
+                                                                 .setCommandBufferCount(1))
+                                     .value()[0]);
+
+            m_handle.begin(
+                vk::CommandBufferBeginInfo().setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
+        }
+        else
+        {
+            m_handle.begin(vk::CommandBufferBeginInfo());
+        }
     }
 
     CommandManager::CommandManager(Device const& device)

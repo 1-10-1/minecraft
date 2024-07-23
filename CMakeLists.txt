@@ -77,7 +77,6 @@ list(APPEND LIBS
     imgui
     GPUOpen::VulkanMemoryAllocator
     tinygltf
-    assimp
     basisu
     Threads::Threads
 )
