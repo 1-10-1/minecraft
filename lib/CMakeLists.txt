@@ -43,10 +43,6 @@ add_subdirectory(imgui)
 # Vulkan Memory Allocator
 add_subdirectory(vma)
 
-# Vulkan Memory Allocator
-set(FASTGLTF_COMPILE_AS_CPP20 ON)
-add_subdirectory(fastgltf)
-
 # Tiny glTF
 set(TINYGLTF_INSTALL OFF)
 set(TINYGLTF_ENABLE_DRACO ON)

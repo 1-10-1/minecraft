@@ -4,6 +4,8 @@
 #include "descriptor.hpp"
 #include "image.hpp"
 
+#include <filesystem>
+
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/quaternion_double.hpp>
 #include <glm/ext/vector_float4.hpp>
@@ -15,17 +17,6 @@ namespace renderer::backend
     constexpr uint32_t kMaxNumJoints = 128;
 
     struct Node;
-
-    enum class MaterialFeatures : uint32_t
-    {
-        ColorTexture            = 1 << 0,
-        NormalTexture           = 1 << 1,
-        RoughnessTexture        = 1 << 2,
-        OcclusionTexture        = 1 << 3,
-        EmissiveTexture         = 1 << 4,
-        TangentVertexAttribute  = 1 << 5,
-        TexcoordVertexAttribute = 1 << 6,
-    };
 
     struct BoundingBox
     {
@@ -60,7 +51,7 @@ namespace renderer::backend
                     Allocator& allocator,
                     CommandManager& cmdManager,
                     tinygltf::Image& gltfimage,
-                    std::string path,
+                    std::filesystem::path path,
                     TextureSampler textureSampler);
 
         GlTFTexture(GlTFTexture const&)            = delete;
@@ -73,10 +64,7 @@ namespace renderer::backend
 
         vk::ImageLayout layout {};
 
-        vk::DescriptorImageInfo descriptor {};
         vk::raii::Sampler sampler { nullptr };
-
-        void updateDescriptor();
 
     private:
         Device* m_device { nullptr };

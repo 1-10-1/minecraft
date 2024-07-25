@@ -67,23 +67,12 @@ namespace renderer::backend
         return BoundingBox(min, max);
     }
 
-    // Texture
-    void GlTFTexture::updateDescriptor()
-    {
-        descriptor.sampler   = sampler;
-        descriptor.imageView = image.getImageView();
-
-        // NOTE(aether) Our Image class sets the following layout after mipmap
-        // generation, but Sascha's implementation may vary.
-        descriptor.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-    }
-
     // Loads the image for this texture. Supports both glTF's web formats (jpg, png, embedded and external files) as well as external KTX2 files with basis universal texture compression
     GlTFTexture::GlTFTexture(Device& device,
                              Allocator& allocator,
                              CommandManager& cmdManager,
                              tinygltf::Image& gltfimage,
-                             std::string path,
+                             std::filesystem::path path,
                              TextureSampler textureSampler)
         : m_device { &device }, m_allocator { &allocator }, m_commandManager { &cmdManager }
     {
@@ -108,11 +97,11 @@ namespace renderer::backend
 
             basist::ktx2_transcoder ktxTranscoder;
 
-            std::string const filename = std::format("{}\\{}", path, gltfimage.uri);
+            std::filesystem::path const filename = path / gltfimage.uri;
 
             std::ifstream ifs(filename, std::ios::binary | std::ios::in | std::ios::ate);
 
-            MC_ASSERT_MSG(ifs.is_open(), "Could not load the requested image file {}", filename);
+            MC_ASSERT_MSG(ifs.is_open(), "Could not load the requested image file {}", filename.string());
 
             uint32_t inputDataSize = static_cast<uint32_t>(ifs.tellg());
             char* inputData        = new char[inputDataSize];
@@ -122,7 +111,7 @@ namespace renderer::backend
 
             MC_ASSERT_MSG(ktxTranscoder.init(inputData, inputDataSize),
                           "Could not initialize ktx2 transcoder for image file {}",
-                          filename);
+                          filename.string());
 
             // Select target format based on device features (use uncompressed if none supported)
             auto targetFormat = basist::transcoder_texture_format::cTFRGBA32;
@@ -172,10 +161,6 @@ namespace renderer::backend
                 }
             }
 
-            logger::info("Found compressed gltf texture, using format {} (transcoder format {})",
-                         magic_enum::enum_name(format),
-                         magic_enum::enum_name(targetFormat));
-
             // TODO(aether) PowerVR texture compression support needs to be checked
             // via an extension (VK_IMG_FORMAT_PVRTC_EXTENSION_NAME)
 
@@ -221,8 +206,9 @@ namespace renderer::backend
             unsigned char* buffer    = new unsigned char[totalBufferSize];
             unsigned char* bufferPtr = &buffer[0];
 
-            MC_ASSERT_MSG(
-                ktxTranscoder.start_transcoding(), "Could not start transcoding for image file {}", filename);
+            MC_ASSERT_MSG(ktxTranscoder.start_transcoding(),
+                          "Could not start transcoding for image file {}",
+                          filename.string());
 
             // Transcode all mip levels into the staging buffer
             for (uint32_t i = 0; i < mipLevels; i++)
@@ -235,7 +221,7 @@ namespace renderer::backend
                 MC_ASSERT_MSG(ktxTranscoder.transcode_image_level(
                                   i, 0, 0, bufferPtr, numBlocksOrPixels, targetFormat, 0),
                               "Could not transcode the requested image file {}",
-                              filename);
+                              filename.string());
 
                 bufferPtr += numBlocksOrPixels * bytesPerBlockOrPixel;
             }
@@ -251,7 +237,7 @@ namespace renderer::backend
                                    vk::ImageUsageFlagBits::eSampled,
                                vk::ImageAspectFlagBits::eColor,
                                mipLevels,
-                               std::format("Compressed gltf texture ({})", gltfimage.name));
+                               std::format("Compressed gltf texture ({})", gltfimage.uri));
 
             ScopedCommandBuffer copyCmd(
                 device, cmdManager.getTransferCmdPool(), device.getTransferQueue(), true);
@@ -311,9 +297,9 @@ namespace renderer::backend
             }
 
             imageMemoryBarrier.oldLayout        = vk::ImageLayout::eTransferDstOptimal;
-            imageMemoryBarrier.newLayout        = vk::ImageLayout::eTransferSrcOptimal;
+            imageMemoryBarrier.newLayout        = vk::ImageLayout::eShaderReadOnlyOptimal;
             imageMemoryBarrier.srcAccessMask    = vk::AccessFlagBits::eTransferWrite;
-            imageMemoryBarrier.dstAccessMask    = vk::AccessFlagBits::eTransferRead;
+            imageMemoryBarrier.dstAccessMask    = vk::AccessFlagBits::eShaderRead;
             imageMemoryBarrier.image            = image;
             imageMemoryBarrier.subresourceRange = subresourceRange;
 
@@ -323,6 +309,8 @@ namespace renderer::backend
                                      {},
                                      {},
                                      { imageMemoryBarrier });
+
+            copyCmd.flush();
 
             delete[] buffer;
             delete[] inputData;
@@ -456,8 +444,6 @@ namespace renderer::backend
                                         .subresourceRange = subresourceRange,
                                     } });
 
-            cmdBuf.flush();
-
             // Generate the mip chain (glTF uses jpg and png, so we need to create this manually)
             for (uint32_t i = 1; i < mipLevels; i++)
             {
@@ -549,14 +535,12 @@ namespace renderer::backend
                                     {},
                                     { vk::ImageMemoryBarrier {
                                         .srcAccessMask    = vk::AccessFlagBits::eTransferWrite,
-                                        .dstAccessMask    = vk::AccessFlagBits::eTransferRead,
+                                        .dstAccessMask    = vk::AccessFlagBits::eShaderRead,
                                         .oldLayout        = vk::ImageLayout::eTransferSrcOptimal,
                                         .newLayout        = vk::ImageLayout::eShaderReadOnlyOptimal,
                                         .image            = image,
                                         .subresourceRange = subresourceRange,
                                     } });
-
-            cmdBuf.flush();
         }
 
         sampler = device->createSampler(vk::SamplerCreateInfo {
@@ -573,13 +557,6 @@ namespace renderer::backend
                       .borderColor      = vk::BorderColor::eFloatOpaqueWhite,
                   }) >>
                   ResultChecker();
-
-        descriptor.sampler   = sampler;
-        descriptor.imageView = image.getImageView();
-
-        // NOTE(aether) this is not hardcoded in Sascha's code, but if im not wrong
-        // it should always be shaderReadOnlyOptimal
-        descriptor.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
     }
 
     // Primitive
@@ -1476,6 +1453,8 @@ namespace renderer::backend
             // Extensions
             if (mat.extensions.find("KHR_materials_pbrSpecularGlossiness") != mat.extensions.end())
             {
+                logger::warn("Application is not prepared to handle the specular glossiness workflow");
+
                 auto ext = mat.extensions.find("KHR_materials_pbrSpecularGlossiness");
 
                 if (ext->second.Has("specularGlossinessTexture"))

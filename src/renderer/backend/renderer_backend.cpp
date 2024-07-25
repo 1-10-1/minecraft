@@ -167,7 +167,7 @@ namespace renderer::backend
         loadGltfScene();
 
         m_light = {
-            .position    = { 1.5f,                  2.f,               0.f              },
+            .position    = { 0.67f,                 0.42f,             0.6f             },
             .color       = { 1.f,                   1.f,               1.f              },
             .attenuation = { .quadratic = 0.00007f, .linear = 0.0014f, .constant = 1.0f },
         };
@@ -245,13 +245,26 @@ namespace renderer::backend
         logger::info("Took {:.2f}s", timeTaken);
 
         // Check and list unsupported extensions
-        for (auto& ext : m_scene.extensions)
+        std::stringstream unsupportedExts;
+
+        for (auto [i, ext] : vi::enumerate(m_scene.extensions))
         {
             if (std::find(m_scene.supportedExtensions.begin(), m_scene.supportedExtensions.end(), ext) ==
                 m_scene.supportedExtensions.end())
             {
-                logger::warn("Unsupported extension {} detected. Scene may not work or display as intended",
-                             ext);
+                unsupportedExts << ext;
+
+                // Last iteration
+                if (i == m_scene.extensions.size() - 1)
+                {
+                    logger::warn(
+                        "Unsupported extension(s) detected: {}\nScene may not work or display as intended.",
+                        unsupportedExts.str());
+                }
+                else
+                {
+                    unsupportedExts << ", ";
+                }
             }
         }
     }
@@ -260,12 +273,10 @@ namespace renderer::backend
     {
         {
             std::vector<DescriptorAllocator::PoolSizeRatio> sizes = {
-                { vk::DescriptorType::eStorageBuffer,        4 },
-                { vk::DescriptorType::eUniformBuffer,        4 },
-                { vk::DescriptorType::eCombinedImageSampler, 4 },
+                { vk::DescriptorType::eUniformBuffer, 2 },
             };
 
-            m_descriptorAllocator = DescriptorAllocator(m_device, 10, sizes);
+            m_descriptorAllocator = DescriptorAllocator(m_device, 1, sizes);
         }
 
         {
@@ -373,15 +384,15 @@ namespace renderer::backend
 
         m_timer.tick();
 
-        float radius = 5.0f;
+        // float radius = 5.0f;
 
-        m_light.position = {
-            radius * glm::fastCos(glm::radians(
-                         static_cast<float>(m_timer.getTotalTime<Timer::Seconds>().count()) * 90.f)),
-            0,
-            radius * glm::fastSin(glm::radians(
-                         static_cast<float>(m_timer.getTotalTime<Timer::Seconds>().count()) * 90.f)),
-        };
+        // m_light.position = {
+        //     radius * glm::fastCos(glm::radians(
+        //                  static_cast<float>(m_timer.getTotalTime<Timer::Seconds>().count()) * 90.f)),
+        //     0,
+        //     radius * glm::fastSin(glm::radians(
+        //                  static_cast<float>(m_timer.getTotalTime<Timer::Seconds>().count()) * 90.f)),
+        // };
 
         // for (RenderItem& item : m_renderItems |
         //                             rn::views::filter(
