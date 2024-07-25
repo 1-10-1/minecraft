@@ -175,7 +175,7 @@ namespace renderer::backend
         for (Primitive& prim : node->mesh->primitives)
         {
             GPUDrawPushConstants pushConstants {
-                .model         = node->mesh->uniformBlock.matrix,
+                .model         = node->mesh->uniformBlock.matrix * node->matrix,
                 .materialIndex = prim.materialIndex,
             };
 

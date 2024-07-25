@@ -680,12 +680,11 @@ namespace renderer::backend
 
         if (mesh)
         {
-            glm::mat4 m = getMatrix();
+            glm::mat4 m               = getMatrix();
+            mesh->uniformBlock.matrix = m;
 
             if (skin)
             {
-                mesh->uniformBlock.matrix = m;
-
                 // Update joint matrices
                 glm::mat4 inverseTransform = glm::inverse(m);
                 size_t numJoints           = std::min(utils::size(skin->joints), kMaxNumJoints);
@@ -884,7 +883,7 @@ namespace renderer::backend
         if (node.matrix.size() == 16)
         {
             newNode->matrix = glm::make_mat4x4(node.matrix.data());
-        };
+        }
 
         // Node with children
         if (node.children.size() > 0)
@@ -1185,11 +1184,12 @@ namespace renderer::backend
                     }
                 }
 
-                Primitive newPrimitive = newMesh->primitives.emplace_back(
-                    indexStart,
-                    indexCount,
-                    vertexCount,
-                    primitive.material > -1 ? primitive.material : materials.size());
+                Primitive newPrimitive =
+                    newMesh->primitives.emplace_back(indexStart,
+                                                     indexCount,
+                                                     vertexCount,
+                                                     // Material #0 is the default material, so we add 1
+                                                     primitive.material > -1 ? primitive.material + 1 : 0);
 
                 newPrimitive.setBoundingBox(posMin, posMax);
             }
@@ -1836,7 +1836,7 @@ namespace renderer::backend
             cmdBuf->copyBuffer(indexStaging, indices, vk::BufferCopy().setSize(indexBufferSize));
         }
 
-        cmdBuf = {};
+        cmdBuf.flush();
 
         delete[] loaderInfo.vertexBuffer;
         delete[] loaderInfo.indexBuffer;

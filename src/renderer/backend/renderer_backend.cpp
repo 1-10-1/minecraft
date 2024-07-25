@@ -226,8 +226,8 @@ namespace renderer::backend
                         m_dummyTexture.getImageView(),
                         m_dummySampler);
 
-        auto glTFFile =
-            std::filesystem::path(std::format("../../gltfSampleAssets/Models/{0}/glTF/{0}.gltf", "Cube"));
+        auto glTFFile = std::filesystem::path(
+            std::format("../../gltfSampleAssets/Models/{0}/glTF/{0}.gltf", "ABeautifulGame"));
 
         logger::info("Loading scene from {}..", glTFFile.c_str());
 

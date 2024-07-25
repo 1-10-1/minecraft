@@ -11,10 +11,11 @@ layout (set = 1, binding = 3) uniform sampler2D emissiveTexture;
 layout (set = 1, binding = 4) uniform sampler2D normalTexture;
 
 layout (location = 0) in vec2 vTexcoord0;
-layout (location = 1) in vec3 vNormal;
-layout (location = 2) in vec4 vTangent;
-layout (location = 3) in vec4 vPosition;
-layout (location = 4) in vec4 vColor;
+layout (location = 1) in vec2 vTexcoord1;
+layout (location = 2) in vec3 vNormal;
+layout (location = 3) in vec4 vTangent;
+layout (location = 4) in vec4 vPosition;
+layout (location = 5) in vec4 vColor;
 
 layout (location = 0) out vec4 frag_color;
 
@@ -33,15 +34,13 @@ layout(set = 0, binding = 1) uniform PointLight {
 void main() {
     Material material = sceneData.materialBuffer.materials[materialIndex];
 
-    // frag_color = material.baseColorFactor == vec4(0.0, 0.0, 0.0, 0.0) ? vec4(1.0, 1.0, 1.0, 1.0) : material.baseColorFactor;
-    //
-    // if ((material.flags & MaterialFeatures_TexcoordVertexAttribute) != 0) {
-    //     // A default diffuse texture is supplied no matter what
-    //     frag_color *= texture(diffuseTexture, vTexcoord0);
-    // } else {
-    //     frag_color *= texture(diffuseTexture, gl_FragCoord.xy * 0.0025);
-    // }
-    //
-    frag_color = vec4(1.0, 1.0, 1.0, 1.0);
+    frag_color = material.baseColorFactor == vec4(0.0, 0.0, 0.0, 0.0) ? vec4(1.0, 1.0, 1.0, 1.0) : material.baseColorFactor;
+
+    if (material.colorTextureSet != -1) {
+        frag_color *= texture(diffuseTexture, material.colorTextureSet == 0 ? vTexcoord0 : vTexcoord1);
+    } else {
+        // frag_color *= texture(diffuseTexture, gl_FragCoord.xy * 0.0025);
+        frag_color *= vColor;
+    }
 }
 
