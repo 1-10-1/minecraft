@@ -144,10 +144,9 @@ namespace renderer::backend
             bool specularGlossiness = false;
         } pbrWorkflows;
 
-        vk::DescriptorSet descriptorSet = nullptr;
-        int index                       = 0;
-        bool unlit                      = false;
-        float emissiveStrength          = 1.0f;
+        int index              = 0;
+        bool unlit             = false;
+        float emissiveStrength = 1.0f;
     };
 
     struct alignas(16) Vertex
@@ -343,6 +342,8 @@ namespace renderer::backend
         GPUBuffer indices;
         GPUBuffer vertices;
         GPUBuffer materialBuffer;
+
+        vk::DescriptorSet bindlessMaterialDescriptorSet { nullptr };
 
         vk::DeviceSize vertexBufferAddress { 0 };
         vk::DeviceSize materialBufferAddress { 0 };

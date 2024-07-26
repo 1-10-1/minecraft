@@ -159,6 +159,15 @@ namespace renderer::backend
 
         cmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
 
+        cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                                  m_pipelineLayout,
+                                  0,
+                                  {
+                                      m_sceneDataDescriptors,
+                                      m_scene.bindlessMaterialDescriptorSet,
+                                  },
+                                  {});
+
         for (auto node : m_scene.nodes)
         {
             renderNode(cmdBuf, node);
@@ -184,15 +193,6 @@ namespace renderer::backend
                                  0,
                                  sizeof(GPUDrawPushConstants),
                                  &pushConstants);
-
-            cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-                                      m_pipelineLayout,
-                                      0,
-                                      {
-                                          m_sceneDataDescriptors,
-                                          m_scene.materials[prim.materialIndex].descriptorSet,
-                                      },
-                                      {});
 
             {
 #if PROFILED

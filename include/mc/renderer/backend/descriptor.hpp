@@ -1,8 +1,8 @@
 #pragma once
 
 #include <deque>
+#include <map>
 #include <span>
-#include <unordered_map>
 #include <vector>
 
 #include <vulkan/vulkan_raii.hpp>
@@ -38,19 +38,24 @@ namespace renderer::backend
     {
         std::deque<vk::DescriptorImageInfo> imageInfos {};
         std::deque<vk::DescriptorBufferInfo> bufferInfos {};
-        std::unordered_map<int, vk::WriteDescriptorSet> writes {};
+        std::map<int, vk::WriteDescriptorSet> writes {};
 
-        void write_image(int binding,
-                         vk::ImageView image,
-                         vk::Sampler sampler,
-                         vk::ImageLayout layout,
-                         vk::DescriptorType type);
+        DescriptorWriter& writeImage(int binding,
+                                     vk::ImageView image,
+                                     vk::Sampler sampler,
+                                     vk::ImageLayout layout,
+                                     vk::DescriptorType type);
 
-        void
-        write_buffer(int binding, vk::Buffer buffer, size_t size, size_t offset, vk::DescriptorType type);
+        DescriptorWriter& writeImages(int binding,
+                                      vk::ImageLayout layout,
+                                      vk::DescriptorType type,
+                                      std::span<vk::DescriptorImageInfo> images);
+
+        DescriptorWriter&
+        writeBuffer(int binding, vk::Buffer buffer, size_t size, size_t offset, vk::DescriptorType type);
 
         void clear();
-        void update_set(vk::raii::Device const& device, vk::DescriptorSet set);
+        void updateSet(vk::raii::Device const& device, vk::DescriptorSet set);
     };
 
     struct DescriptorAllocatorGrowable
@@ -63,17 +68,17 @@ namespace renderer::backend
         };
 
         void init(vk::raii::Device const& device, uint32_t initialSets, std::span<PoolSizeRatio> poolRatios);
-        void clear_pools(vk::raii::Device const& device);
-        void destroy_pools(vk::raii::Device const& device);
+        void clearPools(vk::raii::Device const& device);
+        void destroyPools(vk::raii::Device const& device);
 
         [[nodiscard]] auto allocate(vk::raii::Device const& device,
                                     vk::raii::DescriptorSetLayout const& layout) -> vk::DescriptorSet;
 
     private:
-        auto get_pool(vk::raii::Device const& device) -> vk::raii::DescriptorPool;
-        static auto create_pool(vk::raii::Device const& device,
-                                uint32_t setCount,
-                                std::span<PoolSizeRatio> poolRatios) -> vk::raii::DescriptorPool;
+        auto getPool(vk::raii::Device const& device) -> vk::raii::DescriptorPool;
+        static auto createPool(vk::raii::Device const& device,
+                               uint32_t setCount,
+                               std::span<PoolSizeRatio> poolRatios) -> vk::raii::DescriptorPool;
 
         std::vector<PoolSizeRatio> ratios;
         std::vector<vk::raii::DescriptorPool> fullPools;

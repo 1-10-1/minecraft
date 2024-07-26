@@ -272,6 +272,7 @@ namespace renderer::backend
             },
             {
                 .descriptorIndexing  = true,
+                .shaderSampledImageArrayNonUniformIndexing = true,
                 .descriptorBindingPartiallyBound = true,
                 .runtimeDescriptorArray = true,
                 .bufferDeviceAddress = true,

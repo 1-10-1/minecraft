@@ -226,8 +226,8 @@ namespace renderer::backend
                         m_dummyTexture.getImageView(),
                         m_dummySampler);
 
-        auto glTFFile = std::filesystem::path(
-            std::format("../../gltfSampleAssets/Models/{0}/glTF/{0}.gltf", "ABeautifulGame"));
+        auto glTFFile =
+            std::filesystem::path(std::format("../../gltfSampleAssets/Models/{0}/glTF/{0}.gltf", "Sponza"));
 
         logger::info("Loading scene from {}..", glTFFile.c_str());
 
@@ -292,12 +292,10 @@ namespace renderer::backend
         {
             m_materialDescriptorLayout =
                 DescriptorLayoutBuilder()
-                    .addBinding(0, vk::DescriptorType::eCombinedImageSampler)  // diffuse
-                    .addBinding(1, vk::DescriptorType::eCombinedImageSampler)  // roughness
-                    .addBinding(2, vk::DescriptorType::eCombinedImageSampler)  // occlusion
-                    .addBinding(3, vk::DescriptorType::eCombinedImageSampler)  // emissive
-                    .addBinding(4, vk::DescriptorType::eCombinedImageSampler)  // normal
-                    .build(m_device, vk::ShaderStageFlagBits::eFragment);
+                    .addBinding(0, vk::DescriptorType::eCombinedImageSampler, kMaxBindlessResources)
+                    .build(m_device,
+                           vk::ShaderStageFlagBits::eFragment,
+                           vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool);
         }
 
         m_sceneDataDescriptors = m_descriptorAllocator.allocate(m_device, m_sceneDataDescriptorLayout);
@@ -306,10 +304,10 @@ namespace renderer::backend
             // Global scene data descriptor set
             DescriptorWriter writer;
 
-            writer.write_buffer(
+            writer.writeBuffer(
                 0, m_gpuSceneDataBuffer, sizeof(GPUSceneData), 0, vk::DescriptorType::eUniformBuffer);
-            writer.write_buffer(1, m_lightDataBuffer, sizeof(Light), 0, vk::DescriptorType::eUniformBuffer);
-            writer.update_set(m_device, m_sceneDataDescriptors);
+            writer.writeBuffer(1, m_lightDataBuffer, sizeof(Light), 0, vk::DescriptorType::eUniformBuffer);
+            writer.updateSet(m_device, m_sceneDataDescriptors);
         }
     }
 

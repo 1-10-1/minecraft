@@ -2103,28 +2103,31 @@ namespace renderer::backend
 
     void Model::setupDescriptors()
     {
+        MC_ASSERT(materials.size() <= kMaxBindlessResources);
+
         std::vector<DescriptorAllocator::PoolSizeRatio> sizes {
             { vk::DescriptorType::eCombinedImageSampler, 5 }
         };
 
-        m_materialDescriptorAllocator = DescriptorAllocator(*device, materials.size(), sizes);
+        m_materialDescriptorAllocator = DescriptorAllocator(
+            *device, materials.size(), sizes, vk::DescriptorPoolCreateFlagBits::eUpdateAfterBindEXT);
+
+        bindlessMaterialDescriptorSet =
+            m_materialDescriptorAllocator.allocate(*device, m_materialDescriptorSetLayout);
+
+        std::vector<vk::DescriptorImageInfo> imageInfos(materials.size() * 5);
 
         // Per-Material descriptor sets
-        for (auto& material : materials)
+        for (auto [materialIndex, material] : vi::enumerate(materials))
         {
-            material.descriptorSet =
-                m_materialDescriptorAllocator.allocate(*device, m_materialDescriptorSetLayout);
-
-            DescriptorWriter writer;
-
             // Default the diffuse and metallicRoughness textures initially
-            for (int i = 0; i < 2; ++i)
+            for (int texIndex = 0; texIndex < 2; ++texIndex)
             {
-                writer.write_image(i,
-                                   m_dummyImage,
-                                   m_dummySampler,
-                                   vk::ImageLayout::eShaderReadOnlyOptimal,
-                                   vk::DescriptorType::eCombinedImageSampler);
+                imageInfos[(materialIndex * 5) + texIndex] = {
+                    .sampler     = m_dummySampler,
+                    .imageView   = m_dummyImage,
+                    .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+                };
             }
 
             std::array texturesToWrite {
@@ -2146,16 +2149,15 @@ namespace renderer::backend
                 texturesToWrite[1] = material.extension.specularGlossinessTexture;
             }
 
-            for (auto [i, tex] : vi::enumerate(texturesToWrite))
+            for (auto [texIndex, tex] : vi::enumerate(texturesToWrite))
             {
                 if (!tex)
                 {
-                    writer.write_image(i,
-                                       m_dummyImage,
-                                       m_dummySampler,
-                                       vk::ImageLayout::eShaderReadOnlyOptimal,
-                                       vk::DescriptorType::eCombinedImageSampler);
-
+                    imageInfos[(materialIndex * 5) + texIndex] = {
+                        .sampler     = m_dummySampler,
+                        .imageView   = m_dummyImage,
+                        .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+                    };
                     continue;
                 }
 
@@ -2163,7 +2165,7 @@ namespace renderer::backend
                 {
                     std::string_view type;
 
-                    switch (i)
+                    switch (texIndex)
                     {
                         case 0:
                             type = "diffuse";
@@ -2187,14 +2189,19 @@ namespace renderer::backend
                         "{} (Material #{} {} texture)", tex->image.getName(), material.index, type));
                 }
 
-                writer.write_image(i,
-                                   tex->image.getImageView(),
-                                   tex->sampler,
-                                   vk::ImageLayout::eShaderReadOnlyOptimal,
-                                   vk::DescriptorType::eCombinedImageSampler);
+                imageInfos[(materialIndex * 5) + texIndex] = {
+                    .sampler     = tex->sampler,
+                    .imageView   = tex->image.getImageView(),
+                    .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+                };
             }
-
-            writer.update_set(*device, material.descriptorSet);
         }
+
+        DescriptorWriter()
+            .writeImages(0,
+                         vk::ImageLayout::eShaderReadOnlyOptimal,
+                         vk::DescriptorType::eCombinedImageSampler,
+                         imageInfos)
+            .updateSet(*device, bindlessMaterialDescriptorSet);
     }
 }  // namespace renderer::backend

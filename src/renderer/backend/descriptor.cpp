@@ -24,15 +24,15 @@ namespace renderer::backend
         }
 
         vk::DescriptorSetLayoutCreateInfo info = {
+            .flags        = flags,
             .bindingCount = utils::size(bindings),
             .pBindings    = bindings.data(),
-            .flags        = flags,
         };
 
         return device.createDescriptorSetLayout(info) >> ResultChecker();
     }
 
-    void DescriptorWriter::write_buffer(
+    DescriptorWriter& DescriptorWriter::writeBuffer(
         int binding, vk::Buffer buffer, size_t size, size_t offset, vk::DescriptorType type)
     {
         writes[binding] = vk::WriteDescriptorSet()
@@ -44,13 +44,15 @@ namespace renderer::backend
                                   .offset = offset,
                                   .range  = size,
                               }));
+
+        return *this;
     }
 
-    void DescriptorWriter::write_image(int binding,
-                                       vk::ImageView image,
-                                       vk::Sampler sampler,
-                                       vk::ImageLayout layout,
-                                       vk::DescriptorType type)
+    DescriptorWriter& DescriptorWriter::writeImage(int binding,
+                                                   vk::ImageView image,
+                                                   vk::Sampler sampler,
+                                                   vk::ImageLayout layout,
+                                                   vk::DescriptorType type)
     {
         writes[binding] = vk::WriteDescriptorSet()
                               .setDstBinding(binding)
@@ -61,6 +63,19 @@ namespace renderer::backend
                                   .imageView   = image,
                                   .imageLayout = layout,
                               }));
+
+        return *this;
+    }
+
+    DescriptorWriter& DescriptorWriter::writeImages(int binding,
+                                                    vk::ImageLayout layout,
+                                                    vk::DescriptorType type,
+                                                    std::span<vk::DescriptorImageInfo> images)
+    {
+        writes[binding] =
+            vk::WriteDescriptorSet().setDstBinding(binding).setDescriptorType(type).setImageInfo(images);
+
+        return *this;
     }
 
     void DescriptorWriter::clear()
@@ -70,7 +85,7 @@ namespace renderer::backend
         bufferInfos.clear();
     }
 
-    void DescriptorWriter::update_set(vk::raii::Device const& device, vk::DescriptorSet set)
+    void DescriptorWriter::updateSet(vk::raii::Device const& device, vk::DescriptorSet set)
     {
         device.updateDescriptorSets(writes | vi::values |
                                         vi::transform(
@@ -83,7 +98,7 @@ namespace renderer::backend
                                     {});
     }
 
-    auto DescriptorAllocatorGrowable::get_pool(vk::raii::Device const& device) -> vk::raii::DescriptorPool
+    auto DescriptorAllocatorGrowable::getPool(vk::raii::Device const& device) -> vk::raii::DescriptorPool
     {
         vk::raii::DescriptorPool newPool { nullptr };
 
@@ -94,7 +109,7 @@ namespace renderer::backend
         }
         else
         {
-            newPool = create_pool(device, setsPerPool, ratios);
+            newPool = createPool(device, setsPerPool, ratios);
 
             setsPerPool = std::ceil(static_cast<double>(setsPerPool) * 1.5);
 
@@ -109,9 +124,9 @@ namespace renderer::backend
     }
 
     auto
-    DescriptorAllocatorGrowable::create_pool(vk::raii::Device const& device,
-                                             uint32_t setCount,
-                                             std::span<PoolSizeRatio> poolRatios) -> vk::raii::DescriptorPool
+    DescriptorAllocatorGrowable::createPool(vk::raii::Device const& device,
+                                            uint32_t setCount,
+                                            std::span<PoolSizeRatio> poolRatios) -> vk::raii::DescriptorPool
     {
         std::vector<vk::DescriptorPoolSize> poolSizes(poolRatios.size());
 
@@ -143,13 +158,13 @@ namespace renderer::backend
             ratios.push_back(r);
         }
 
-        readyPools.push_back(create_pool(device, initialSets, poolRatios));
+        readyPools.push_back(createPool(device, initialSets, poolRatios));
 
         setsPerPool =
             static_cast<uint32_t>(static_cast<float>(initialSets) * 1.5f);  // grow it next allocation
     }
 
-    void DescriptorAllocatorGrowable::clear_pools(vk::raii::Device const& device)
+    void DescriptorAllocatorGrowable::clearPools(vk::raii::Device const& device)
     {
         for (auto& p : readyPools)
         {
@@ -159,7 +174,7 @@ namespace renderer::backend
         fullPools.clear();
     }
 
-    void DescriptorAllocatorGrowable::destroy_pools(vk::raii::Device const& device)
+    void DescriptorAllocatorGrowable::destroyPools(vk::raii::Device const& device)
     {
         readyPools.clear();
         fullPools.clear();
@@ -170,7 +185,7 @@ namespace renderer::backend
                                           vk::raii::DescriptorSetLayout const& layout) -> vk::DescriptorSet
     {
         // get or create a pool to allocate from
-        vk::raii::DescriptorPool poolToUse = get_pool(device);
+        vk::raii::DescriptorPool poolToUse = getPool(device);
 
         vk::DescriptorSetAllocateInfo allocInfo = {
             .descriptorPool     = poolToUse,
@@ -187,7 +202,7 @@ namespace renderer::backend
         {
             fullPools.push_back(std::move(poolToUse));
 
-            poolToUse                = get_pool(device);
+            poolToUse                = getPool(device);
             allocInfo.descriptorPool = poolToUse;
 
             ds = (*device).allocateDescriptorSets(allocInfo);

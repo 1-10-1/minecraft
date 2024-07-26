@@ -1,14 +1,11 @@
 #version 460
 
 #extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_nonuniform_qualifier : enable
 
 #include "common.glsl"
 
-layout (set = 1, binding = 0) uniform sampler2D diffuseTexture;
-layout (set = 1, binding = 1) uniform sampler2D roughnessMetalnessTexture;
-layout (set = 1, binding = 2) uniform sampler2D occlusionTexture;
-layout (set = 1, binding = 3) uniform sampler2D emissiveTexture;
-layout (set = 1, binding = 4) uniform sampler2D normalTexture;
+layout (set = 1, binding = 0) uniform sampler2D textures[];
 
 layout (location = 0) in vec2 vTexcoord0;
 layout (location = 1) in vec2 vTexcoord1;
@@ -203,6 +200,8 @@ layout(set = 0, binding = 1) uniform PointLight {
 //     }
 // }
 
+// *********************
+
 float heaviside( float v ) {
     if ( v > 0.0 ) return 1.0;
     else return 0.0;
@@ -210,6 +209,12 @@ float heaviside( float v ) {
 
 void main() {
     Material material = sceneData.materialBuffer.materials[materialIndex];
+
+    vec4 diffSample     = texture(textures[nonuniformEXT((materialIndex * 5) + 0)], vTexcoord0);
+    vec4 metRoughSample = texture(textures[nonuniformEXT((materialIndex * 5) + 1)], vTexcoord0);
+    vec4 occlSample     = texture(textures[nonuniformEXT((materialIndex * 5) + 2)], vTexcoord0);
+    vec4 emisSample     = texture(textures[nonuniformEXT((materialIndex * 5) + 3)], vTexcoord0);
+    vec3 normalSample   = texture(textures[nonuniformEXT((materialIndex * 5) + 4)], vTexcoord0).rgb;
 
     // NOTE(marco): taken from https://community.khronos.org/t/computing-the-tangent-space-in-the-fragment-shader/52861
     vec3 Q1 = dFdx( vPosition.xyz );
@@ -232,7 +237,7 @@ void main() {
     vec3 N = normalize( vNormal );
 
     if (material.normalTextureSet != -1) {
-        N = normalize( texture(normalTexture, vTexcoord0).rgb * 2.0 - 1.0 );
+        N = normalize( normalSample * 2.0 - 1.0 );
         N = normalize( TBN * N );
     }
 
@@ -245,10 +250,8 @@ void main() {
         // Red channel for occlusion value
         // Green channel contains roughness values
         // Blue channel contains metalness
-        vec4 rm = texture(roughnessMetalnessTexture, vTexcoord0);
-
-        roughness *= rm.g;
-        metalness *= rm.b;
+        roughness *= metRoughSample.g;
+        metalness *= metRoughSample.b;
     }
 
     // Could it just be the alpha of the diffuse?
@@ -270,7 +273,7 @@ void main() {
     vec4 base_colour = material.baseColorFactor;
 
     if (material.colorTextureSet != -1) {
-        base_colour *= texture( diffuseTexture, vTexcoord0 );
+        base_colour *= diffSample;
     }
 
     float visibility = ( heaviside( HdotL ) / ( abs( NdotL ) +
