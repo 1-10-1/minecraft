@@ -272,8 +272,11 @@ namespace renderer::backend
             },
             {
                 .descriptorIndexing  = true,
+                .descriptorBindingPartiallyBound = true,
+                .runtimeDescriptorArray = true,
                 .bufferDeviceAddress = true,
             },
+
             {
                 .synchronization2 = true,
                 .dynamicRendering = true,

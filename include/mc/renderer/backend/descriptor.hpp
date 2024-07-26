@@ -14,12 +14,13 @@ namespace renderer::backend
     public:
         std::vector<vk::DescriptorSetLayoutBinding> bindings;
 
-        auto addBinding(uint32_t binding, vk::DescriptorType type) -> DescriptorLayoutBuilder&
+        auto
+        addBinding(uint32_t binding, vk::DescriptorType type, uint32_t count = 1) -> DescriptorLayoutBuilder&
         {
             bindings.push_back({
                 .binding         = binding,
                 .descriptorType  = type,
-                .descriptorCount = 1,
+                .descriptorCount = count,
             });
 
             return *this;
@@ -28,7 +29,9 @@ namespace renderer::backend
         void clear() { bindings.clear(); };
 
         auto build(vk::raii::Device const& device,
-                   vk::ShaderStageFlags shaderStages) -> vk::raii::DescriptorSetLayout;
+                   vk::ShaderStageFlags shaderStages,
+                   vk::DescriptorSetLayoutCreateFlags flags =
+                       static_cast<vk::DescriptorSetLayoutCreateFlags>(0)) -> vk::raii::DescriptorSetLayout;
     };
 
     struct DescriptorWriter
@@ -90,9 +93,11 @@ namespace renderer::backend
         DescriptorAllocator()  = default;
         ~DescriptorAllocator() = default;
 
-        DescriptorAllocator(vk::raii::Device const& device,
-                            uint32_t maxSets,
-                            std::span<PoolSizeRatio> poolRatios);
+        DescriptorAllocator(
+            vk::raii::Device const& device,
+            uint32_t maxSets,
+            std::span<PoolSizeRatio> poolRatios,
+            vk::DescriptorPoolCreateFlags flags = static_cast<vk::DescriptorPoolCreateFlagBits>(0));
 
         DescriptorAllocator(DescriptorAllocator&&)                    = default;
         auto operator=(DescriptorAllocator&&) -> DescriptorAllocator& = default;

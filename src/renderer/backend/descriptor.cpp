@@ -13,8 +13,10 @@ namespace vi = std::ranges::views;
 
 namespace renderer::backend
 {
-    auto DescriptorLayoutBuilder::build(vk::raii::Device const& device,
-                                        vk::ShaderStageFlags shaderStages) -> vk::raii::DescriptorSetLayout
+    auto
+    DescriptorLayoutBuilder::build(vk::raii::Device const& device,
+                                   vk::ShaderStageFlags shaderStages,
+                                   vk::DescriptorSetLayoutCreateFlags flags) -> vk::raii::DescriptorSetLayout
     {
         for (auto& binding : bindings)
         {
@@ -24,6 +26,7 @@ namespace renderer::backend
         vk::DescriptorSetLayoutCreateInfo info = {
             .bindingCount = utils::size(bindings),
             .pBindings    = bindings.data(),
+            .flags        = flags,
         };
 
         return device.createDescriptorSetLayout(info) >> ResultChecker();
@@ -201,17 +204,21 @@ namespace renderer::backend
 
     DescriptorAllocator::DescriptorAllocator(vk::raii::Device const& device,
                                              uint32_t maxSets,
-                                             std::span<PoolSizeRatio> poolRatios)
+                                             std::span<PoolSizeRatio> poolRatios,
+                                             vk::DescriptorPoolCreateFlags flags)
     {
         std::vector<vk::DescriptorPoolSize> poolSizes(poolRatios.size());
 
         for (auto [index, ratio] : vi::enumerate(poolRatios))
         {
-            poolSizes[index] = { .type            = ratio.type,
-                                 .descriptorCount = static_cast<uint32_t>(ratio.ratio) * maxSets };
+            poolSizes[index] = {
+                .type            = ratio.type,
+                .descriptorCount = static_cast<uint32_t>(ratio.ratio) * maxSets,
+            };
         }
 
         vk::DescriptorPoolCreateInfo pool_info = {
+            .flags         = flags,
             .maxSets       = maxSets,
             .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
             .pPoolSizes    = poolSizes.data(),

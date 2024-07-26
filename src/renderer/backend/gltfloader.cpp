@@ -2103,12 +2103,8 @@ namespace renderer::backend
 
     void Model::setupDescriptors()
     {
-        int imageSamplerCount = materials.size() * 5;
-
         std::vector<DescriptorAllocator::PoolSizeRatio> sizes {
-            { vk::DescriptorType::eCombinedImageSampler,
-             // TODO(aether)                           vvvvvvvvvvvvvvvvvvvv why?
-              static_cast<float>(imageSamplerCount) /* * kNumFramesInFlight */ }
+            { vk::DescriptorType::eCombinedImageSampler, 5 }
         };
 
         m_materialDescriptorAllocator = DescriptorAllocator(*device, materials.size(), sizes);

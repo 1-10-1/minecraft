@@ -297,7 +297,7 @@ namespace renderer::backend
                     .addBinding(2, vk::DescriptorType::eCombinedImageSampler)  // occlusion
                     .addBinding(3, vk::DescriptorType::eCombinedImageSampler)  // emissive
                     .addBinding(4, vk::DescriptorType::eCombinedImageSampler)  // normal
-                    .build(m_device, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
+                    .build(m_device, vk::ShaderStageFlagBits::eFragment);
         }
 
         m_sceneDataDescriptors = m_descriptorAllocator.allocate(m_device, m_sceneDataDescriptorLayout);
