@@ -17,6 +17,7 @@
 #include <GLFW/glfw3.h>
 #include <fmt/core.h>
 #include <tracy/Tracy.hpp>
+#include <vulkan/vulkan.hpp>
 
 namespace rn = std::ranges;
 namespace vi = std::ranges::views;
@@ -74,7 +75,11 @@ namespace renderer::backend
                                               .engineVersion      = 1,
                                               .apiVersion         = vk::ApiVersion13 };
 
-        std::vector<char const*> requiredExtensions;
+        std::vector<char const*> requiredExtensions {
+#if DEBUG
+            vk::EXTDebugUtilsExtensionName
+#endif
+        };
         std::vector<vk::ExtensionProperties> supportedExtensions =
             context.enumerateInstanceExtensionProperties();
 
@@ -82,7 +87,7 @@ namespace renderer::backend
             uint32_t count {};
             char const** glfwExtStrings = glfwGetRequiredInstanceExtensions(&count);
 
-            requiredExtensions.reserve(count);
+            requiredExtensions.reserve(count + requiredExtensions.size());
 
             for (uint32_t i = 0; i < count; ++i)
             {
@@ -91,25 +96,19 @@ namespace renderer::backend
             }
         }
 
-        if constexpr (kDebug)
-        {
-            requiredExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-        }
-
-        for (char const* requiredExt : requiredExtensions)
-        {
-            if (auto it = rn::find_if(supportedExtensions,
-                                      [requiredExt](VkExtensionProperties const& supportedExt)
-                                      {
-                                          return std::string_view(static_cast<char const*>(
-                                                     supportedExt.extensionName)) == requiredExt;
-                                      });
-                it == supportedExtensions.end())
-            {
-                MC_THROW Error(GraphicsError,
-                               std::format("Extension {} is required but isn't supported", requiredExt));
-            }
-        }
+        // Check that all required extensions are present
+        rn::for_each(requiredExtensions,
+                     [&supportedExtensions](char const* requiredExt)
+                     {
+                         MC_ASSERT_MSG(rn::find_if(supportedExtensions,
+                                                   [requiredExt](VkExtensionProperties const& supportedExt)
+                                                   {
+                                                       return std::string_view(static_cast<char const*>(
+                                                                  supportedExt.extensionName)) == requiredExt;
+                                                   }) != supportedExtensions.end(),
+                                       "Extension {} is required but isn't supported",
+                                       requiredExt);
+                     });
 
         // clang-format off
         m_handle = context.createInstance(

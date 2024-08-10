@@ -4,6 +4,7 @@
 #include "command.hpp"
 #include "device.hpp"
 #include "mc/asserts.hpp"
+#include "mc/renderer/backend/vk_checker.hpp"
 
 #include <string>
 #include <string_view>
@@ -144,26 +145,33 @@ namespace renderer::backend
 
         [[nodiscard]] auto getName() const -> std::string_view
         {
+#if DEBUG
             VmaAllocationInfo allocInfo;
             vmaGetAllocationInfo(*m_allocator, m_allocation, &allocInfo);
 
             return allocInfo.pName;
+#else
+            return "";
+#endif
         }
 
         void setName(std::string_view name)
         {
-            if constexpr (!kDebug)
-            {
-                return;
-            }
-
+#if DEBUG
             vmaSetAllocationName(*m_allocator, m_allocation, name.data());
 
-            m_device->get().setDebugUtilsObjectNameEXT(
-                vk::DebugUtilsObjectNameInfoEXT()
-                    .setObjectHandle(reinterpret_cast<uint64_t>(m_handle))
-                    .setObjectType(vk::ObjectType::eImage)
-                    .setPObjectName(name.data()));
+            auto func = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
+                m_device->getInstance().getProcAddr("vkSetDebugUtilsObjectNameEXT"));
+
+            VkDebugUtilsObjectNameInfoEXT info {
+                .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+                .objectType   = VK_OBJECT_TYPE_IMAGE,
+                .objectHandle = reinterpret_cast<uint64_t>(m_handle),
+                .pObjectName  = name.data(),
+            };
+
+            func(*m_device->get(), &info) >> ResultChecker();
+#endif
         }
 
         [[nodiscard]] auto getImageView() const -> vk::raii::ImageView const&

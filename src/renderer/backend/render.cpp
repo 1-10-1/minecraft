@@ -111,7 +111,7 @@ namespace renderer::backend
         auto colorAttachment = vk::RenderingAttachmentInfo()
                                    .setImageView(m_drawImage.getImageView())
                                    .setImageLayout(vk::ImageLayout::eGeneral)
-                                   .setLoadOp(vk::AttachmentLoadOp::eLoad)
+                                   .setLoadOp(vk::AttachmentLoadOp::eClear)
                                    .setStoreOp(vk::AttachmentStoreOp::eStore)
                                    .setResolveImageView(m_drawImageResolve.getImageView())
                                    .setResolveImageLayout(vk::ImageLayout::eGeneral)
@@ -241,19 +241,6 @@ namespace renderer::backend
                 cmdBuf, m_drawImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
             BasicImage::transition(
                 cmdBuf, m_depthImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthAttachmentOptimal);
-
-            vk::ClearColorValue clearValue {
-                std::array { 33.f / 255.f, 33.f / 255.f, 33.f / 255.f, 1.f }
-            };
-
-            auto range = vk::ImageSubresourceRange()
-                             .setAspectMask(vk::ImageAspectFlagBits::eColor)
-                             .setLayerCount(vk::RemainingArrayLayers)
-                             .setLevelCount(vk::RemainingMipLevels)
-                             .setBaseMipLevel(0)
-                             .setBaseArrayLayer(0);
-
-            cmdBuf.clearColorImage(m_drawImage, vk::ImageLayout::eTransferDstOptimal, clearValue, range);
 
             BasicImage::transition(cmdBuf,
                                    m_drawImage,

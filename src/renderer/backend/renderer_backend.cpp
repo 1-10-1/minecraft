@@ -1,8 +1,7 @@
-#include "mc/renderer/backend/allocator.hpp"
-#include <chrono>
 #include <mc/asserts.hpp>
 #include <mc/exceptions.hpp>
 #include <mc/logger.hpp>
+#include <mc/renderer/backend/allocator.hpp>
 #include <mc/renderer/backend/command.hpp>
 #include <mc/renderer/backend/constants.hpp>
 #include <mc/renderer/backend/descriptor.hpp>
@@ -10,16 +9,19 @@
 #include <mc/renderer/backend/info_structs.hpp>
 #include <mc/renderer/backend/pipeline.hpp>
 #include <mc/renderer/backend/renderer_backend.hpp>
+#include <mc/renderer/backend/shader.hpp>
 #include <mc/renderer/backend/utils.hpp>
 #include <mc/renderer/backend/vk_checker.hpp>
 #include <mc/renderer/backend/vk_result_messages.hpp>
 #include <mc/timer.hpp>
 #include <mc/utils.hpp>
 
+#include <chrono>
 #include <filesystem>
 #include <print>
 
 #include <glm/ext.hpp>
+#include <glslang/Public/ShaderLang.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 #include <tracy/Tracy.hpp>
@@ -82,6 +84,8 @@ namespace renderer::backend
                          vk::ImageAspectFlagBits::eDepth }
     // clang_format on
     {
+        glslang::InitializeProcess();
+
         initImgui(window.getHandle());
 
         m_dummySampler = m_device->createSampler({
@@ -124,6 +128,9 @@ namespace renderer::backend
                                    sizeof(float) * pixels.size());
         }
 
+        ShaderCode shader("");
+        exit(0);
+
         m_gpuSceneDataBuffer = GPUBuffer(m_allocator,
                                          sizeof(GPUSceneData),
                                          vk::BufferUsageFlagBits::eUniformBuffer,
@@ -152,8 +159,8 @@ namespace renderer::backend
         {
             auto pipelineConfig =
                 GraphicsPipelineConfig()
-                    .addShader("shaders/fs.frag.spv", vk::ShaderStageFlagBits::eFragment, "main")
-                    .addShader("shaders/vs.vert.spv", vk::ShaderStageFlagBits::eVertex, "main")
+                    .addShader("../../shaders/fs.frag", vk::ShaderStageFlagBits::eFragment, "main")
+                    .addShader("../../shaders/vs.vert", vk::ShaderStageFlagBits::eVertex, "main")
                     .setColorAttachmentFormat(m_drawImage.getFormat())
                     .setDepthAttachmentFormat(kDepthStencilFormat)
                     .setDepthStencilSettings(true, vk::CompareOp::eGreaterOrEqual)
@@ -215,6 +222,8 @@ namespace renderer::backend
             TracyVkDestroy(resource.tracyContext);
         }
 #endif
+
+        glslang::FinalizeProcess();
     }
 
     void RendererBackend::loadGltfScene()
@@ -226,8 +235,8 @@ namespace renderer::backend
                         m_dummyTexture.getImageView(),
                         m_dummySampler);
 
-        auto glTFFile =
-            std::filesystem::path(std::format("../../gltfSampleAssets/Models/{0}/glTF/{0}.gltf", "Sponza"));
+        auto glTFFile = std::filesystem::path(
+            std::format("../../gltfSampleAssets/Models/{0}/glTF/{0}.gltf", "ABeautifulGame"));
 
         logger::info("Loading scene from {}..", glTFFile.c_str());
 

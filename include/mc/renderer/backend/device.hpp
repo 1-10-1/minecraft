@@ -45,6 +45,8 @@ namespace renderer::backend
 
         [[nodiscard]] vk::raii::Device const& get() const { return m_logicalHandle; }
 
+        [[nodiscard]] vk::raii::Instance const& getInstance() const { return m_instance->get(); }
+
         [[nodiscard]] auto getQueueFamilyIndices() const -> QueueFamilyIndices const&
         {
             return m_queueFamilyIndices;
@@ -79,6 +81,8 @@ namespace renderer::backend
     private:
         void selectPhysicalDevice(Instance& instance, Surface& surface);
         void selectLogicalDevice();
+
+        Instance* m_instance { nullptr };
 
         vk::raii::Device m_logicalHandle { nullptr };
         vk::raii::PhysicalDevice m_physicalHandle { nullptr };

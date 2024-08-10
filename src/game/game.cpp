@@ -11,14 +11,14 @@ namespace game
         : m_window { window }, m_eventManager { eventManager }, m_camera { camera }
     {
         // For the sponza scene:
-        m_camera.lookAt(glm::vec3 { 1.25f, 1.4f, -1.25f }, { 0.f, 0.f, 0.f }, { 0.f, 1.f, 0.f });
-        m_camera.pitch(40.f);
-        m_camera.yaw(-50.0f);
+        // m_camera.lookAt(glm::vec3 { 1.25f, 1.4f, -1.25f }, { 0.f, 0.f, 0.f }, { 0.f, 1.f, 0.f });
+        // m_camera.pitch(40.f);
+        // m_camera.yaw(-50.0f);
 
         // For the ABeautifulGame scene:
-        // m_camera.lookAt(glm::vec3 { 0.67f, 0.42f, 0.6f }, { 0.f, 0.f, 0.f }, { 0.f, 1.f, 0.f });
-        // m_camera.yaw(-2.0f);
-        // m_camera.pitch(18.4f);
+        m_camera.lookAt(glm::vec3 { 0.67f, 0.42f, 0.6f }, { 0.f, 0.f, 0.f }, { 0.f, 1.f, 0.f });
+        m_camera.yaw(-2.0f);
+        m_camera.pitch(18.4f);
 
         m_eventManager.subscribe(this, &Game::onUpdate, &Game::onMouseButton, &Game::onKeyHold);
     };

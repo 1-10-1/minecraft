@@ -45,6 +45,7 @@ list(APPEND SOURCE_FILES
     src/renderer/backend/allocator.cpp
     src/renderer/backend/descriptor.cpp
     src/renderer/backend/swapchain.cpp
+    src/renderer/backend/shader.cpp
     src/renderer/backend/device.cpp
     src/renderer/backend/utils.cpp
     src/renderer/renderer.cpp
@@ -79,6 +80,7 @@ list(APPEND LIBS
     tinygltf
     basisu
     Threads::Threads
+    SPIRV
 )
 
 if (MSVC)
@@ -180,7 +182,7 @@ foreach(SHADER_FILE ${SHADER_FILES})
                 --target-spv=spv1.6
                 --target-env=vulkan1.3
                 -fshader-stage=${SHADER_TYPE}
-                -g
+                $<$<CONFIG:Debug>:-g>
         DEPENDS ${SHADER_FILE}
         COMMENT "Compiling ${SHADER_TYPE} shader: ${SHADER_FILE}"
     )
@@ -194,7 +196,7 @@ foreach(SHADER_FILE ${SHADER_FILES})
                 --target-spv=spv1.6
                 --target-env=vulkan1.3
                 -fshader-stage=${SHADER_TYPE}
-            -g
+                $<$<CONFIG:Debug>:-g>
         DEPENDS ${SHADER_FILE}
         COMMENT "Compiling ${SHADER_TYPE} shader assembly: ${SHADER_FILE}"
     )

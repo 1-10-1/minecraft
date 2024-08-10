@@ -1,7 +1,11 @@
 #pragma once
 
 #include "allocator.hpp"
-#include "vk_checker.hpp"
+#include <vulkan/vulkan_core.h>
+
+#if DEBUG
+#    include "vk_checker.hpp"
+#endif
 
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan_raii.hpp>
@@ -75,26 +79,33 @@ namespace renderer::backend
 
         [[nodiscard]] auto getName() const -> std::string_view
         {
+#if DEBUG
             VmaAllocationInfo allocInfo;
             vmaGetAllocationInfo(*m_allocator, m_allocation, &allocInfo);
 
             return allocInfo.pName;
+#else
+            return "";
+#endif
         }
 
-        void setName(vk::Device device, std::string_view name)
+        void setName(Device const& device, std::string_view name)
         {
-            if constexpr (kDebug)
-            {
-                return;
-            }
-
+#if DEBUG
             vmaSetAllocationName(*m_allocator, m_allocation, name.data());
 
-            device.setDebugUtilsObjectNameEXT(vk::DebugUtilsObjectNameInfoEXT()
-                                                  .setObjectHandle(reinterpret_cast<uint64_t>(m_buffer))
-                                                  .setObjectType(vk::ObjectType::eImage)
-                                                  .setPObjectName(name.data())) >>
-                ResultChecker();
+            auto func = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
+                device.getInstance().getProcAddr("vkSetDebugUtilsObjectNameEXT"));
+
+            VkDebugUtilsObjectNameInfoEXT info {
+                .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+                .objectType   = VK_OBJECT_TYPE_BUFFER,
+                .objectHandle = reinterpret_cast<uint64_t>(m_buffer),
+                .pObjectName  = name.data(),
+            };
+
+            func(*device.get(), &info) >> ResultChecker();
+#endif
         }
 
         [[nodiscard]] auto getMappedData() const -> void* { return m_allocInfo.pMappedData; }

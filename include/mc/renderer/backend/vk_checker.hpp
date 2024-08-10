@@ -28,6 +28,11 @@ namespace renderer::backend
         MC_ASSERT_MSG_LOC(token.loc, res == vk::Result::eSuccess, "{}", vkResultToStr(res));
     }
 
+    inline void operator>>(VkResult res, ResultChecker token)
+    {
+        static_cast<vk::Result>(res) >> token;
+    }
+
     template<typename T>
     T operator>>(vk::ResultValue<T>&& res, ResultChecker token)
     {

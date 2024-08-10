@@ -111,7 +111,7 @@ namespace renderer::backend
         int score { 0 };
     };
 
-    Device::Device(Instance& instance, Surface& surface)
+    Device::Device(Instance& instance, Surface& surface) : m_instance { &instance }
     {
         selectPhysicalDevice(instance, surface);
         selectLogicalDevice();

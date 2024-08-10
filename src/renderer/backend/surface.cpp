@@ -61,13 +61,6 @@ namespace renderer::backend
             {
                 for (auto const& availablePresentMode : m_details.presentModes)
                 {
-                    if (availablePresentMode == vk::PresentModeKHR::eMailbox)
-                    {
-                        m_details.presentMode = availablePresentMode;
-                        presentModeChosen     = true;
-                        break;
-                    }
-
                     if (availablePresentMode == vk::PresentModeKHR::eImmediate)
                     {
                         m_details.presentMode = availablePresentMode;

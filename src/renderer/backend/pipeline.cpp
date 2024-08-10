@@ -1,6 +1,7 @@
 #include <mc/asserts.hpp>
 #include <mc/exceptions.hpp>
 #include <mc/renderer/backend/pipeline.hpp>
+#include <mc/renderer/backend/shader.hpp>
 #include <mc/renderer/backend/utils.hpp>
 #include <mc/renderer/backend/vertex.hpp>
 #include <mc/renderer/backend/vk_checker.hpp>
@@ -305,13 +306,21 @@ namespace renderer::backend
         shaderStages.reserve(config.shaders.size());
 
         std::vector<vk::raii::ShaderModule> shaderModules;
+        std::vector<ShaderCode> shaderCompilations(config.shaders.size());
         shaderModules.reserve(config.shaders.size());
 
         for (uint32_t i : vi::iota(0u, config.shaders.size()))
         {
             ShaderInfo const& info = config.shaders[i];
 
-            shaderModules.push_back(createShaderModule(device.get(), info.path));
+            ShaderCode& shaderCompilation = shaderCompilations.emplace_back(ShaderCode(info.path));
+
+            shaderModules[i] =
+                device->createShaderModule({
+                    .codeSize = shaderCompilation.getSpirv().size(),
+                    .pCode    = reinterpret_cast<uint32_t const*>(shaderCompilation.getSpirv().data()),
+                }) >>
+                ResultChecker();
 
             shaderStages.push_back(
                 { .stage = info.stage, .module = shaderModules[i], .pName = info.entryPoint.data() });

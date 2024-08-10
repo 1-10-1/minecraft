@@ -569,6 +569,8 @@ namespace renderer::backend
           vertexCount { vertexCount },
           materialIndex { materialIndex }
     {
+        totalPrims++;
+
         hasIndices = indexCount > 0;
     };
 
@@ -2120,16 +2122,6 @@ namespace renderer::backend
         // Per-Material descriptor sets
         for (auto [materialIndex, material] : vi::enumerate(materials))
         {
-            // Default the diffuse and metallicRoughness textures initially
-            for (int texIndex = 0; texIndex < 2; ++texIndex)
-            {
-                imageInfos[(materialIndex * 5) + texIndex] = {
-                    .sampler     = m_dummySampler,
-                    .imageView   = m_dummyImage,
-                    .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
-                };
-            }
-
             std::array texturesToWrite {
                 static_cast<GlTFTexture*>(nullptr),
                 static_cast<GlTFTexture*>(nullptr),

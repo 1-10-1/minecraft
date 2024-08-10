@@ -181,6 +181,8 @@ namespace renderer::backend
         bool hasIndices;
 
         BoundingBox bb;
+
+        inline static uint64_t totalPrims = 0;
     };
 
     struct Mesh
