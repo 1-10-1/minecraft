@@ -15,14 +15,8 @@ namespace renderer::backend
 {
     auto
     DescriptorLayoutBuilder::build(vk::raii::Device const& device,
-                                   vk::ShaderStageFlags shaderStages,
                                    vk::DescriptorSetLayoutCreateFlags flags) -> vk::raii::DescriptorSetLayout
     {
-        for (auto& binding : bindings)
-        {
-            binding.stageFlags |= shaderStages;
-        }
-
         vk::DescriptorSetLayoutCreateInfo info = {
             .flags        = flags,
             .bindingCount = utils::size(bindings),

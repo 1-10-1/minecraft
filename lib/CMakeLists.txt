@@ -56,5 +56,8 @@ add_subdirectory(basisu)
 # add_subdirectory(spirvtools)
 
 # SPIRV Cross
-# add_subdirectory(spirvcross)
+set(SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS ON)
+set(SPIRV_CROSS_CLI OFF)
+set(SPIRV_CROSS_ENABLE_TESTS OFF)
+add_subdirectory(spirvcross)
 

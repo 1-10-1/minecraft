@@ -94,7 +94,6 @@ namespace renderer::backend
             return &result;
         };
 
-        // Handles shaderc_include_result_release_fn callbacks.
         void ReleaseInclude(shaderc_include_result* data) override
         {
             m_includeResults.erase(data->source_name);
@@ -105,6 +104,7 @@ namespace renderer::backend
     private:
         // TODO(aether) these aren't released by ReleaseInclude(data)
         // use shaderc_include_result::userdata for this
+        // Suggestion: cache includes by path as ambient side effects are not a thing here
         std::vector<std::string> m_includeContents;
 
         std::unordered_map<std::string, shaderc_include_result> m_includeResults;

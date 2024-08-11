@@ -85,6 +85,7 @@ list(APPEND LIBS
     SPIRV-Tools-opt
     glslang
     shaderc_combined
+    spirv-cross-cpp
 )
 
 if (MSVC)
@@ -143,78 +144,15 @@ endif()
 
 target_link_options(${PROJECT_NAME} PRIVATE -pthread -flto=auto) #-fsanitize=address -g -fno-omit-frame-pointer)
 
-file(GLOB SHADER_FILES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/shaders/*")
-
-set(SHADER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/shaders")
-file(MAKE_DIRECTORY ${SHADER_OUTPUT_DIR})
-
-foreach(FILE ${SHADER_FILES})
-    if (NOT EXISTS ${FILE})
-        message(FATAL_ERROR "Shader file '${FILE}' does not exist.")
-    endif()
-endforeach(FILE)
-
-# foreach(SHADER_FILE ${SHADER_FILES})
-#     get_filename_component(FILE_NAME_WITH_EXT ${SHADER_FILE} NAME)
-#     get_filename_component(FILE_WE ${SHADER_FILE} NAME_WE)
-#     get_filename_component(SHADER_EXT ${SHADER_FILE} EXT)
-#
-#         # Determine the shader type based on the extension
-#     if(${SHADER_EXT} STREQUAL ".vert")
-#         set(SHADER_TYPE "vertex")
-#     elseif(${SHADER_EXT} STREQUAL ".tesc")
-#         set(SHADER_TYPE "tesscontrol")
-#     elseif(${SHADER_EXT} STREQUAL ".tese")
-#         set(SHADER_TYPE "tesseval")
-#     elseif(${SHADER_EXT} STREQUAL ".geom")
-#         set(SHADER_TYPE "geometry")
-#     elseif(${SHADER_EXT} STREQUAL ".frag")
-#         set(SHADER_TYPE "fragment")
-#     elseif(${SHADER_EXT} STREQUAL ".comp")
-#         set(SHADER_TYPE "compute")
-#     elseif(${SHADER_EXT} STREQUAL ".glsl")
-#         continue()
-#     else()
-#         message(FATAL_ERROR "Unknown shader extension: ${SHADER_EXT}")
-#     endif()
-#
-#     add_custom_command(
-#         OUTPUT "${SHADER_OUTPUT_DIR}/${FILE_NAME_WITH_EXT}.spv"
-#         COMMAND glslc ${SHADER_FILE} -O
-#                 -o "${SHADER_OUTPUT_DIR}/${FILE_NAME_WITH_EXT}.spv"
-#                 -std=460
-#                 --target-spv=spv1.6
-#                 --target-env=vulkan1.3
-#                 -fshader-stage=${SHADER_TYPE}
-#                 $<$<CONFIG:Debug>:-g>
-#         DEPENDS ${SHADER_FILE}
-#         COMMENT "Compiling ${SHADER_TYPE} shader: ${SHADER_FILE}"
-#     )
-#
-#     # Also output the assembly
-#     add_custom_command(
-#         OUTPUT "${SHADER_OUTPUT_DIR}/${FILE_NAME_WITH_EXT}.asm"
-#         COMMAND glslc ${SHADER_FILE} -O -S
-#                 -o "${SHADER_OUTPUT_DIR}/${FILE_NAME_WITH_EXT}.asm"
-#                 -std=460
-#                 --target-spv=spv1.6
-#                 --target-env=vulkan1.3
-#                 -fshader-stage=${SHADER_TYPE}
-#                 $<$<CONFIG:Debug>:-g>
-#         DEPENDS ${SHADER_FILE}
-#         COMMENT "Compiling ${SHADER_TYPE} shader assembly: ${SHADER_FILE}"
-#     )
-#     list(APPEND COMPILED_SHADERS "${SHADER_OUTPUT_DIR}/${FILE_NAME_WITH_EXT}.asm")
-#
-#     list(APPEND COMPILED_SHADERS "${SHADER_OUTPUT_DIR}/${FILE_NAME_WITH_EXT}.spv")
-# endforeach()
-#
-# add_custom_target(CompileShaders DEPENDS ${COMPILED_SHADERS})
-#
-# add_dependencies(${PROJECT_NAME} CompileShaders)
-
 add_custom_command(
     TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${CMAKE_SOURCE_DIR}/res $<TARGET_FILE_DIR:${PROJECT_NAME}>/res
 )
+
+add_custom_command(
+    TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/shaders $<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders
+)
+

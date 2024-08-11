@@ -156,8 +156,9 @@ namespace renderer::backend
         {
             auto pipelineConfig =
                 GraphicsPipelineConfig()
-                    .addShader("../../shaders/fs.frag")
-                    .addShader("../../shaders/vs.vert")
+                    // FIXME(aether) using paths relative to the build/debug directory
+                    .addShader("shaders/fs.frag")
+                    .addShader("shaders/vs.vert")
                     .setColorAttachmentFormat(m_drawImage.getFormat())
                     .setDepthAttachmentFormat(kDepthStencilFormat)
                     .setDepthStencilSettings(true, vk::CompareOp::eGreaterOrEqual)
