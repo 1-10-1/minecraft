@@ -128,9 +128,6 @@ namespace renderer::backend
                                    sizeof(float) * pixels.size());
         }
 
-        ShaderCode shader("");
-        exit(0);
-
         m_gpuSceneDataBuffer = GPUBuffer(m_allocator,
                                          sizeof(GPUSceneData),
                                          vk::BufferUsageFlagBits::eUniformBuffer,
@@ -159,8 +156,8 @@ namespace renderer::backend
         {
             auto pipelineConfig =
                 GraphicsPipelineConfig()
-                    .addShader("../../shaders/fs.frag", vk::ShaderStageFlagBits::eFragment, "main")
-                    .addShader("../../shaders/vs.vert", vk::ShaderStageFlagBits::eVertex, "main")
+                    .addShader("../../shaders/fs.frag")
+                    .addShader("../../shaders/vs.vert")
                     .setColorAttachmentFormat(m_drawImage.getFormat())
                     .setDepthAttachmentFormat(kDepthStencilFormat)
                     .setDepthStencilSettings(true, vk::CompareOp::eGreaterOrEqual)

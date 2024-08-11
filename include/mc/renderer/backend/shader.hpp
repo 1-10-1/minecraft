@@ -2,179 +2,138 @@
 
 #include <filesystem>
 #include <fstream>
-#include <list>
-#include <mutex>
+#include <unordered_map>
+#include <vector>
 
-#include <glslang/Public/ShaderLang.h>
-#include <set>
+#include "mc/asserts.hpp"
+
+#include <shaderc/shaderc.h>
+#include <shaderc/shaderc.hpp>
+#include <vulkan/vulkan.hpp>
 
 namespace renderer::backend
 {
-    class DirStackFileIncluder : public glslang::TShader::Includer
+    inline shaderc_shader_kind getShaderKindFromFile(std::filesystem::path const& path)
     {
-    public:
-        DirStackFileIncluder() : m_externalLocalDirectoryCount(0) {}
-
-        auto includeLocal(char const* headerName,
-                          char const* includerName,
-                          size_t inclusionDepth) -> IncludeResult* override
-        {
-            return readLocalPath(headerName, includerName, (uint32_t)inclusionDepth);
-        }
-
-        auto includeSystem(char const* headerName,
-                           char const* /*includerName*/,
-                           size_t /*inclusionDepth*/) -> IncludeResult* override
-        {
-            return readSystemPath(headerName);
-        }
-
-        // Externally set directories. E.g., from a command-line -I<dir>.
-        //  - Most-recently pushed are checked first.
-        //  - All these are checked after the parse-time stack of local directories
-        //    is checked.
-        //  - This only applies to the "local" form of #include.
-        //  - Makes its own copy of the path.
-        void pushExternalLocalDirectory(std::string const& dir)
-        {
-            m_directoryStack.push_back(dir);
-            m_externalLocalDirectoryCount = (int)m_directoryStack.size();
-        }
-
-        void releaseInclude(IncludeResult* result) override
-        {
-            if (result != nullptr)
-            {
-                delete[] static_cast<char*>(result->userData);
-                delete result;
-            }
-        }
-
-        std::set<std::string> getIncludedFiles() { return m_includedFiles; }
-
-        ~DirStackFileIncluder() override {}
-
-    protected:
-        std::vector<std::string> m_directoryStack;
-        int m_externalLocalDirectoryCount;
-        std::set<std::string> m_includedFiles;
-
-        // Search for a valid "local" path based on combining the stack of include
-        // directories and the nominal name of the header.
-        virtual IncludeResult* readLocalPath(char const* headerName, char const* includerName, uint32_t depth)
-        {
-            // Discard popped include directories, and
-            // initialize when at parse-time first level.
-            m_directoryStack.resize(depth + static_cast<uint32_t>(m_externalLocalDirectoryCount));
-            if (depth == 1)
-                m_directoryStack.back() = getDirectory(includerName);
-
-            // Find a directory that works, using a reverse search of the include stack.
-            for (auto it = m_directoryStack.rbegin(); it != m_directoryStack.rend(); ++it)
-            {
-                std::string path = *it + '/' + headerName;
-                std::replace(path.begin(), path.end(), '\\', '/');
-                std::ifstream file(path, std::ios_base::binary | std::ios_base::ate);
-                if (file)
-                {
-                    m_directoryStack.push_back(getDirectory(path));
-                    m_includedFiles.insert(path);
-                    return newIncludeResult(path, file, static_cast<size_t>(file.tellg()));
-                }
-            }
-
-            return nullptr;
-        }
-
-        // Search for a valid <system> path.
-        // Not implemented yet; returning nullptr signals failure to find.
-        virtual IncludeResult* readSystemPath(char const* /*headerName*/) const { return nullptr; }
-
-        // Do actual reading of the file, filling in a new include result.
-        virtual IncludeResult*
-        newIncludeResult(std::string const& path, std::ifstream& file, size_t length) const
-        {
-            char* content = new char[length];
-            file.seekg(0, file.beg);
-            file.read(content, static_cast<int>(length));
-            return new IncludeResult(path, content, length, content);
-        }
-
-        // If no path markers, return current working directory.
-        // Otherwise, strip file name and return path leading up to it.
-        virtual std::string getDirectory(std::string const path) const
-        {
-            size_t last = path.find_last_of("/\\");
-            return last == std::string::npos ? "." : path.substr(0, last);
-        }
+        return std::unordered_map<std::string_view, shaderc_shader_kind> {
+            { ".vert",  shaderc_shader_kind::shaderc_vertex_shader          },
+            { ".tesc",  shaderc_shader_kind::shaderc_tess_control_shader    },
+            { ".tese",  shaderc_shader_kind::shaderc_tess_evaluation_shader },
+            { ".geom",  shaderc_shader_kind::shaderc_geometry_shader        },
+            { ".frag",  shaderc_shader_kind::shaderc_fragment_shader        },
+            { ".comp",  shaderc_shader_kind::shaderc_compute_shader         },
+            { ".rgen",  shaderc_shader_kind::shaderc_raygen_shader          },
+            { ".rint",  shaderc_shader_kind::shaderc_intersection_shader    },
+            { ".rahit", shaderc_shader_kind::shaderc_anyhit_shader          },
+            { ".rchit", shaderc_shader_kind::shaderc_closesthit_shader      },
+            { ".rmiss", shaderc_shader_kind::shaderc_miss_shader            },
+            { ".rcall", shaderc_shader_kind::shaderc_callable_shader        },
+            { ".mesh",  shaderc_shader_kind::shaderc_mesh_shader            },
+            { ".task",  shaderc_shader_kind::shaderc_task_shader            },
+        }[path.extension().string()];
     };
 
-    class TWorkItem
+    inline vk::ShaderStageFlagBits getShaderStageFromFile(std::filesystem::path const& path)
     {
-    public:
-        TWorkItem() = default;
-
-        explicit TWorkItem(std::string const& s) : name(s) {}
-
-        std::string name;
-        std::string results;
-        std::string resultsIndex;
+        return std::unordered_map<std::string_view, vk::ShaderStageFlagBits> {
+            { ".vert",  vk::ShaderStageFlagBits::eVertex                 },
+            { ".tesc",  vk::ShaderStageFlagBits::eTessellationControl    },
+            { ".tese",  vk::ShaderStageFlagBits::eTessellationEvaluation },
+            { ".geom",  vk::ShaderStageFlagBits::eGeometry               },
+            { ".frag",  vk::ShaderStageFlagBits::eFragment               },
+            { ".comp",  vk::ShaderStageFlagBits::eCompute                },
+            { ".rgen",  vk::ShaderStageFlagBits::eRaygenKHR              },
+            { ".rint",  vk::ShaderStageFlagBits::eIntersectionKHR        },
+            { ".rahit", vk::ShaderStageFlagBits::eAnyHitKHR              },
+            { ".rchit", vk::ShaderStageFlagBits::eClosestHitKHR          },
+            { ".rmiss", vk::ShaderStageFlagBits::eMissKHR                },
+            { ".rcall", vk::ShaderStageFlagBits::eCallableKHR            },
+            { ".mesh",  vk::ShaderStageFlagBits::eMeshEXT                },
+            { ".task",  vk::ShaderStageFlagBits::eTaskEXT                },
+        }[path.extension().string()];
     };
 
-    class TWorklist
+    class Includer final : public shaderc::CompileOptions::IncluderInterface
     {
     public:
-        TWorklist()  = default;
-        ~TWorklist() = default;
-
-        void add(TWorkItem* item)
+        shaderc_include_result* GetInclude(char const* requested_source,
+                                           shaderc_include_type type,
+                                           char const* requesting_source,
+                                           size_t include_depth) override
         {
-            std::lock_guard<std::mutex> guard(mutex);
+            auto path = std::filesystem::path("../../shaders/") / requested_source;
 
-            worklist.push_back(item);
-        }
+            // FIXME(aether)
+            MC_ASSERT_MSG(include_depth == 1 && type == shaderc_include_type_relative,
+                          "Not prepared to handle this :/");
 
-        bool remove(TWorkItem*& item)
+            auto& result = m_includeResults[requested_source];
+
+            std::ifstream file(path, std::ios::ate | std::ios::binary);
+
+            MC_ASSERT_MSG(file.is_open(),
+                          "{} can't be opened (included by shader {})",
+                          requested_source,
+                          requesting_source);
+
+            auto fileSize = file.tellg();
+            file.seekg(0);
+
+            std::string& includeContent = m_includeContents.emplace_back();
+            includeContent.resize(static_cast<std::size_t>(fileSize));
+
+            file.read(reinterpret_cast<char*>(includeContent.data()), fileSize);
+
+            file.close();
+
+            result.content            = includeContent.data();
+            result.source_name        = requested_source;
+            result.content_length     = includeContent.size();
+            result.source_name_length = std::strlen(requested_source);
+
+            return &result;
+        };
+
+        // Handles shaderc_include_result_release_fn callbacks.
+        void ReleaseInclude(shaderc_include_result* data) override
         {
-            std::lock_guard<std::mutex> guard(mutex);
+            m_includeResults.erase(data->source_name);
+        };
 
-            if (worklist.empty())
-                return false;
+        virtual ~Includer() = default;
 
-            item = worklist.front();
+    private:
+        // TODO(aether) these aren't released by ReleaseInclude(data)
+        // use shaderc_include_result::userdata for this
+        std::vector<std::string> m_includeContents;
 
-            worklist.pop_front();
-
-            return true;
-        }
-
-        auto size() -> size_t { return worklist.size(); }
-
-        bool empty() { return worklist.empty(); }
-
-    protected:
-        std::mutex mutex;
-
-        std::list<TWorkItem*> worklist;
+        std::unordered_map<std::string, shaderc_include_result> m_includeResults;
     };
 
-    class Shader
+    class ShaderCode
     {
     public:
-        Shader()  = default;
-        ~Shader() = default;
+        ShaderCode()  = default;
+        ~ShaderCode() = default;
 
-        Shader(std::filesystem::path path);
+        ShaderCode(std::filesystem::path path,
+                   std::string_view entrypoint              = {},
+                   std::optional<shaderc_shader_kind> stage = {});
 
-        Shader(Shader&&)                    = default;
-        auto operator=(Shader&&) -> Shader& = default;
+        ShaderCode(ShaderCode&&)                    = default;
+        auto operator=(ShaderCode&&) -> ShaderCode& = default;
 
-        Shader(Shader const&)                    = delete;
-        auto operator=(Shader const&) -> Shader& = delete;
+        ShaderCode(ShaderCode const&)                    = delete;
+        auto operator=(ShaderCode const&) -> ShaderCode& = delete;
 
         auto getSpirv() const -> std::vector<uint32_t> const& { return m_spirv; }
 
     private:
+        auto compileShader(std::string const& source_name,
+                           shaderc_shader_kind kind,
+                           std::string const& source,
+                           std::string_view entrypoint = "main") -> std::vector<uint32_t>;
+
         std::vector<uint32_t> m_spirv {};
     };
 }  // namespace renderer::backend

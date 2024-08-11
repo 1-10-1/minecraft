@@ -38,10 +38,10 @@ namespace renderer::backend
     }
 
     auto GraphicsPipelineConfig::addShader(std::filesystem::path const& path,
-                                           vk::ShaderStageFlagBits stage,
                                            std::string const& entryPoint) -> GraphicsPipelineConfig&
     {
-        shaders.push_back({ path, stage, entryPoint });
+        shaders.push_back(
+            { .path = path, .entryPoint = entryPoint.empty() ? "main" : std::move(entryPoint) });
 
         return *this;
     };
@@ -219,18 +219,15 @@ namespace renderer::backend
             return rn::find_if(shaders,
                                [stage](ShaderInfo const& info)
                                {
-                                   return info.stage == stage;
+                                   return getShaderStageFromFile(info.path) == stage;
                                }) != shaders.end();
         };
 
-        // clang-format off
-        MC_ASSERT_MSG(checkShaderStagePresent(vk::ShaderStageFlagBits::eVertex)
-                   && checkShaderStagePresent(vk::ShaderStageFlagBits::eFragment)
-                   && config.shaders.size() >= 2
-                   && config.colorAttachmentFormat.has_value()
-                   && config.depthAttachmentFormat.has_value(),
-                      "Graphics pipeline builder was not correctly configured");
-        // clang-format on
+        MC_ASSERT(checkShaderStagePresent(vk::ShaderStageFlagBits::eVertex));
+        MC_ASSERT(checkShaderStagePresent(vk::ShaderStageFlagBits::eFragment));
+        MC_ASSERT(config.shaders.size() >= 2);
+        MC_ASSERT(config.colorAttachmentFormat.has_value());
+        MC_ASSERT(config.depthAttachmentFormat.has_value());
 
         std::array dynamicStates { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
 
@@ -296,12 +293,6 @@ namespace renderer::backend
             .alphaToOneEnable      = config.alphaToOneEnable,
         };
 
-        vk::PipelineRenderingCreateInfo renderInfo {
-            .colorAttachmentCount    = 1,
-            .pColorAttachmentFormats = &config.colorAttachmentFormat.value(),
-            .depthAttachmentFormat   = config.depthAttachmentFormat.value(),
-        };
-
         std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
         shaderStages.reserve(config.shaders.size());
 
@@ -313,37 +304,42 @@ namespace renderer::backend
         {
             ShaderInfo const& info = config.shaders[i];
 
-            ShaderCode& shaderCompilation = shaderCompilations.emplace_back(ShaderCode(info.path));
+            ShaderCode& shaderCompilation =
+                shaderCompilations.emplace_back(ShaderCode(info.path, info.entryPoint));
 
-            shaderModules[i] =
-                device->createShaderModule({
-                    .codeSize = shaderCompilation.getSpirv().size(),
-                    .pCode    = reinterpret_cast<uint32_t const*>(shaderCompilation.getSpirv().data()),
-                }) >>
-                ResultChecker();
+            std::vector<uint32_t> const& spirv = shaderCompilation.getSpirv();
 
-            shaderStages.push_back(
-                { .stage = info.stage, .module = shaderModules[i], .pName = info.entryPoint.data() });
+            shaderModules.push_back(device->createShaderModule(vk::ShaderModuleCreateInfo().setCode(spirv)) >>
+                                    ResultChecker());
+
+            shaderStages.push_back({ .stage  = getShaderStageFromFile(info.path),
+                                     .module = shaderModules[i],
+                                     .pName  = info.entryPoint.data() });
         }
 
-        vk::GraphicsPipelineCreateInfo pipelineInfo {
-            .pNext               = &renderInfo,
-            .stageCount          = utils::size(shaderStages),
-            .pStages             = shaderStages.data(),
-            .pVertexInputState   = &vertexInput,
-            .pInputAssemblyState = &inputAssembly,
-            .pViewportState      = &viewportState,
-            .pRasterizationState = &rasterizer,
-            .pMultisampleState   = &multisampling,
-            .pDepthStencilState  = &depthStencil,
-            .pColorBlendState    = &colorBlending,
-            .pDynamicState       = &dynamicState,
-            .layout              = layout,
-            .basePipelineHandle  = nullptr,
-            .basePipelineIndex   = -1,
+        vk::StructureChain<vk::GraphicsPipelineCreateInfo, vk::PipelineRenderingCreateInfoKHR> pipelineChain {
+            vk::GraphicsPipelineCreateInfo()
+                .setStages(shaderStages)
+                .setPVertexInputState(&vertexInput)
+                .setPInputAssemblyState(&inputAssembly)
+                .setPViewportState(&viewportState)
+                .setPRasterizationState(&rasterizer)
+                .setPMultisampleState(&multisampling)
+                .setPDepthStencilState(&depthStencil)
+                .setPColorBlendState(&colorBlending)
+                .setPDynamicState(&dynamicState)
+                .setLayout(layout)
+                .setBasePipelineIndex(-1)
+                .setBasePipelineHandle(nullptr),
+
+            vk::PipelineRenderingCreateInfoKHR()
+                .setColorAttachmentFormats(config.colorAttachmentFormat.value())
+                .setDepthAttachmentFormat(config.depthAttachmentFormat.value()),
         };
 
-        m_pipeline = device->createGraphicsPipeline({ nullptr }, pipelineInfo) >> ResultChecker();
+        m_pipeline = device->createGraphicsPipeline({ nullptr },
+                                                    pipelineChain.get<vk::GraphicsPipelineCreateInfo>()) >>
+                     ResultChecker();
     };
 
     ComputePipeline::ComputePipeline(Device const& device,

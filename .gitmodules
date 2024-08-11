@@ -59,3 +59,9 @@
 [submodule "gltfSampleAssets"]
 	path = gltfSampleAssets
 	url = https://github.com/KhronosGroup/glTF-Sample-Assets
+[submodule "lib/spirvcross"]
+	path = lib/spirvcross
+	url = https://github.com/KhronosGroup/SPIRV-Cross
+[submodule "lib/spirvtools"]
+	path = lib/spirvtools
+	url = https://github.com/KhronosGroup/SPIRV-Tools/

@@ -51,3 +51,10 @@ add_subdirectory(tinygltf)
 # Basis Universal Codec
 add_subdirectory(basisu)
 
+# SPIRV Tools
+# set(SPIRV_WERROR OFF)
+# add_subdirectory(spirvtools)
+
+# SPIRV Cross
+# add_subdirectory(spirvcross)
+

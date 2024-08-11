@@ -15,8 +15,10 @@ namespace renderer::backend
     struct ShaderInfo
     {
         std::filesystem::path path;
-        vk::ShaderStageFlagBits stage;
         std::string entryPoint;
+
+        // Stage is calculated from the path extension
+        // vk::ShaderStageFlagBits stage;
     };
 
     class PipelineLayoutConfig
@@ -39,8 +41,7 @@ namespace renderer::backend
     {
     public:
         auto addShader(std::filesystem::path const& path,
-                       vk::ShaderStageFlagBits stage,
-                       std::string const& entryPoint) -> GraphicsPipelineConfig&;
+                       std::string const& entryPoint = {}) -> GraphicsPipelineConfig&;
 
         auto enableBlending(bool enable = true) -> GraphicsPipelineConfig&;
         auto blendingSetAlphaBlend() -> GraphicsPipelineConfig&;
