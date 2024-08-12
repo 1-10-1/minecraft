@@ -1,10 +1,15 @@
 #pragma once
 
+#include <mc/asserts.hpp>
+#include <mc/logger.hpp>
+
 #include <deque>
 #include <map>
 #include <span>
+#include <unordered_map>
 #include <vector>
 
+#include <magic_enum.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
 namespace renderer::backend
@@ -12,26 +17,37 @@ namespace renderer::backend
     class DescriptorLayoutBuilder
     {
     public:
-        std::vector<vk::DescriptorSetLayoutBinding> bindings;
-
-        auto addBinding(uint32_t binding,
+        auto setBinding(uint32_t binding,
                         vk::DescriptorType type,
                         vk::ShaderStageFlags stages,
                         uint32_t count = 1) -> DescriptorLayoutBuilder&
         {
-            bindings.push_back({ .binding         = binding,
-                                 .descriptorType  = type,
-                                 .descriptorCount = count,
-                                 .stageFlags      = stages });
+            // If we get the same binding again, ensure that only the stage flags differ
+            if (m_bindings.find(binding) == m_bindings.end())
+            {
+                m_bindings[binding] = {
+                    .binding = binding, .descriptorType = type, .descriptorCount = count, .stageFlags = stages
+                };
+            }
+            else
+            {
+                MC_ASSERT(m_bindings[binding].descriptorType == type);
+                MC_ASSERT(m_bindings[binding].descriptorCount == count);
+
+                m_bindings[binding].stageFlags |= stages;
+            }
 
             return *this;
         };
 
-        void clear() { bindings.clear(); };
+        void clear() { m_bindings.clear(); };
 
         auto build(vk::raii::Device const& device,
                    vk::DescriptorSetLayoutCreateFlags flags =
                        static_cast<vk::DescriptorSetLayoutCreateFlags>(0)) -> vk::raii::DescriptorSetLayout;
+
+    private:
+        std::unordered_map<uint32_t, vk::DescriptorSetLayoutBinding> m_bindings;
     };
 
     struct DescriptorWriter

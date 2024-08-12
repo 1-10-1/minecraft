@@ -17,9 +17,11 @@ namespace renderer::backend
     DescriptorLayoutBuilder::build(vk::raii::Device const& device,
                                    vk::DescriptorSetLayoutCreateFlags flags) -> vk::raii::DescriptorSetLayout
     {
+        std::vector bindings = m_bindings | vi::values | rn::to<std::vector>();
+
         vk::DescriptorSetLayoutCreateInfo info = {
             .flags        = flags,
-            .bindingCount = utils::size(bindings),
+            .bindingCount = utils::size(m_bindings),
             .pBindings    = bindings.data(),
         };
 

@@ -1,7 +1,8 @@
 #pragma once
 
 #include "device.hpp"
-#include "mc/renderer/backend/vk_checker.hpp"
+#include "shader.hpp"
+#include "vk_checker.hpp"
 
 #include <filesystem>
 #include <optional>
@@ -40,9 +41,6 @@ namespace renderer::backend
     class GraphicsPipelineConfig
     {
     public:
-        auto addShader(std::filesystem::path const& path,
-                       std::string const& entryPoint = {}) -> GraphicsPipelineConfig&;
-
         auto enableBlending(bool enable = true) -> GraphicsPipelineConfig&;
         auto blendingSetAlphaBlend() -> GraphicsPipelineConfig&;
         auto blendingSetAdditiveBlend() -> GraphicsPipelineConfig&;
@@ -91,7 +89,7 @@ namespace renderer::backend
         auto setDepthAttachmentFormat(vk::Format format) -> GraphicsPipelineConfig&;
 
     private:
-        std::vector<ShaderInfo> shaders {};
+        ShaderManager shaderManager {};
 
         // Defaults
         // ********

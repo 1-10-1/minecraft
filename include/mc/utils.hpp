@@ -28,6 +28,25 @@ namespace utils
         return buffer;
     }
 
+    inline auto readFileIntoString(std::filesystem::path const& path) -> std::string
+    {
+        std::ifstream file(path, std::ios::ate | std::ios::binary);
+
+        MC_ASSERT_MSG(file.is_open(), "Failed to read file '{}'", path.string());
+
+        auto fileSize = file.tellg();
+        file.seekg(0);
+
+        std::string buffer;
+        buffer.resize(static_cast<std::size_t>(fileSize));
+
+        file.read(reinterpret_cast<char*>(buffer.data()), fileSize);
+
+        file.close();
+
+        return buffer;
+    }
+
     template<typename Class, typename Ret, typename... Args>
     auto captureThis(Ret (Class::*func)(Args...), Class* instance) -> std::function<Ret(Args...)>
     {

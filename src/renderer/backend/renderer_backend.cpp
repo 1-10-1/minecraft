@@ -142,6 +142,11 @@ namespace renderer::backend
                                       VMA_ALLOCATION_CREATE_MAPPED_BIT |
                                           VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
+        ShaderManager shaders(m_device);
+        shaders.addShader("shaders/fs.frag").addShader("shaders/vs.vert").build();
+
+        exit(0);
+
         initDescriptors();
 
         auto pipelineLayoutConfig =
@@ -153,29 +158,30 @@ namespace renderer::backend
 
         m_pipelineLayout = PipelineLayout(m_device, pipelineLayoutConfig);
 
-        {
-            auto pipelineConfig =
-                GraphicsPipelineConfig()
-                    // FIXME(aether) using paths relative to the build/debug directory
-                    .addShader("shaders/fs.frag")
-                    .addShader("shaders/vs.vert")
-                    .setColorAttachmentFormat(m_drawImage.getFormat())
-                    .setDepthAttachmentFormat(kDepthStencilFormat)
-                    .setDepthStencilSettings(true, vk::CompareOp::eGreaterOrEqual)
-                    // .setCullingSettings(vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise)
-                    .setSampleCount(m_device.getMaxUsableSampleCount())
-                    .setSampleShadingSettings(true, 0.1f);
+        // https://discord.com/channels/427551838099996672/960603079252774942/1272197964332531722
 
-            m_pipeline = GraphicsPipeline(m_device, m_pipelineLayout, pipelineConfig);
-        }
-
-        loadGltfScene();
-
-        m_light = {
-            .position    = { 0.67f,                 0.42f,             0.6f             },
-            .color       = { 1.f,                   1.f,               1.f              },
-            .attenuation = { .quadratic = 0.00007f, .linear = 0.0014f, .constant = 1.0f },
-        };
+        // {
+        //     auto pipelineConfig =
+        //         GraphicsPipelineConfig()
+        //             .addShader()
+        //             .addShader("shaders/vs.vert")
+        //             .setColorAttachmentFormat(m_drawImage.getFormat())
+        //             .setDepthAttachmentFormat(kDepthStencilFormat)
+        //             .setDepthStencilSettings(true, vk::CompareOp::eGreaterOrEqual)
+        //             // .setCullingSettings(vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise)
+        //             .setSampleCount(m_device.getMaxUsableSampleCount())
+        //             .setSampleShadingSettings(true, 0.1f);
+        //
+        //     m_pipeline = GraphicsPipeline(m_device, m_pipelineLayout, pipelineConfig);
+        // }
+        //
+        // loadGltfScene();
+        //
+        // m_light = {
+        //     .position    = { 0.67f,                 0.42f,             0.6f             },
+        //     .color       = { 1.f,                   1.f,               1.f              },
+        //     .attenuation = { .quadratic = 0.00007f, .linear = 0.0014f, .constant = 1.0f },
+        // };
 
 #if PROFILED
         for (size_t i : vi::iota(0u, utils::size(m_frameResources)))
@@ -290,19 +296,22 @@ namespace renderer::backend
             m_sceneDataDescriptorLayout =
                 DescriptorLayoutBuilder()
                     // The scene data buffer
-                    .addBinding(0, vk::DescriptorType::eUniformBuffer)
+                    .setBinding(0,
+                                vk::DescriptorType::eUniformBuffer,
+                                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment)
                     // The light data buffer
-                    .addBinding(1, vk::DescriptorType::eUniformBuffer)
-                    .build(m_device, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
+                    .setBinding(1, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment)
+                    .build(m_device);
         }
 
         {
             m_materialDescriptorLayout =
                 DescriptorLayoutBuilder()
-                    .addBinding(0, vk::DescriptorType::eCombinedImageSampler, kMaxBindlessResources)
-                    .build(m_device,
-                           vk::ShaderStageFlagBits::eFragment,
-                           vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool);
+                    .setBinding(0,
+                                vk::DescriptorType::eCombinedImageSampler,
+                                vk::ShaderStageFlagBits::eFragment,
+                                kMaxBindlessResources)
+                    .build(m_device, vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool);
         }
 
         m_sceneDataDescriptors = m_descriptorAllocator.allocate(m_device, m_sceneDataDescriptorLayout);

@@ -37,15 +37,6 @@ namespace renderer::backend
         return *this;
     }
 
-    auto GraphicsPipelineConfig::addShader(std::filesystem::path const& path,
-                                           std::string const& entryPoint) -> GraphicsPipelineConfig&
-    {
-        shaders.push_back(
-            { .path = path, .entryPoint = entryPoint.empty() ? "main" : std::move(entryPoint) });
-
-        return *this;
-    };
-
     auto GraphicsPipelineConfig::enableBlending(bool enable) -> GraphicsPipelineConfig&
     {
         blendingEnable = enable;
@@ -213,19 +204,6 @@ namespace renderer::backend
                                        PipelineLayout const& layout,
                                        GraphicsPipelineConfig const& config)
     {
-        [[maybe_unused]] auto checkShaderStagePresent =
-            [&shaders = config.shaders](vk::ShaderStageFlagBits stage)
-        {
-            return rn::find_if(shaders,
-                               [stage](ShaderInfo const& info)
-                               {
-                                   return getShaderStageFromFile(info.path) == stage;
-                               }) != shaders.end();
-        };
-
-        MC_ASSERT(checkShaderStagePresent(vk::ShaderStageFlagBits::eVertex));
-        MC_ASSERT(checkShaderStagePresent(vk::ShaderStageFlagBits::eFragment));
-        MC_ASSERT(config.shaders.size() >= 2);
         MC_ASSERT(config.colorAttachmentFormat.has_value());
         MC_ASSERT(config.depthAttachmentFormat.has_value());
 
@@ -293,33 +271,9 @@ namespace renderer::backend
             .alphaToOneEnable      = config.alphaToOneEnable,
         };
 
-        std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
-        shaderStages.reserve(config.shaders.size());
-
-        std::vector<vk::raii::ShaderModule> shaderModules;
-        std::vector<ShaderCode> shaderCompilations(config.shaders.size());
-        shaderModules.reserve(config.shaders.size());
-
-        for (uint32_t i : vi::iota(0u, config.shaders.size()))
-        {
-            ShaderInfo const& info = config.shaders[i];
-
-            ShaderCode& shaderCompilation =
-                shaderCompilations.emplace_back(ShaderCode(info.path, info.entryPoint));
-
-            std::vector<uint32_t> const& spirv = shaderCompilation.getSpirv();
-
-            shaderModules.push_back(device->createShaderModule(vk::ShaderModuleCreateInfo().setCode(spirv)) >>
-                                    ResultChecker());
-
-            shaderStages.push_back({ .stage  = getShaderStageFromFile(info.path),
-                                     .module = shaderModules[i],
-                                     .pName  = info.entryPoint.data() });
-        }
-
         vk::StructureChain<vk::GraphicsPipelineCreateInfo, vk::PipelineRenderingCreateInfoKHR> pipelineChain {
             vk::GraphicsPipelineCreateInfo()
-                .setStages(shaderStages)
+                // .setStages(shaderStages)
                 .setPVertexInputState(&vertexInput)
                 .setPInputAssemblyState(&inputAssembly)
                 .setPViewportState(&viewportState)

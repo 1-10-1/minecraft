@@ -5,11 +5,13 @@
 #include <unordered_map>
 #include <vector>
 
+#include "device.hpp"
 #include "mc/asserts.hpp"
 
 #include <shaderc/shaderc.h>
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_raii.hpp>
 
 namespace renderer::backend
 {
@@ -110,23 +112,59 @@ namespace renderer::backend
         std::unordered_map<std::string, shaderc_include_result> m_includeResults;
     };
 
-    class ShaderCode
+    struct ShaderDescription
+    {
+        std::filesystem::path path;
+        std::string_view entrypoint {};
+        std::optional<shaderc_shader_kind> shaderKind {};
+    };
+
+    struct DescriptorSetBindings
+    {
+        uint32_t set;
+        std::vector<vk::DescriptorSetLayoutBinding> bindings;
+    };
+
+    class ShaderManager
     {
     public:
-        ShaderCode()  = default;
-        ~ShaderCode() = default;
+        ShaderManager()  = default;
+        ~ShaderManager() = default;
 
-        ShaderCode(std::filesystem::path path,
-                   std::string_view entrypoint              = {},
-                   std::optional<shaderc_shader_kind> stage = {});
+        ShaderManager(Device& device) : m_device { &device } {};
 
-        ShaderCode(ShaderCode&&)                    = default;
-        auto operator=(ShaderCode&&) -> ShaderCode& = default;
+        ShaderManager(ShaderManager&&)                    = default;
+        auto operator=(ShaderManager&&) -> ShaderManager& = default;
 
-        ShaderCode(ShaderCode const&)                    = delete;
-        auto operator=(ShaderCode const&) -> ShaderCode& = delete;
+        ShaderManager(ShaderManager const&)                    = delete;
+        auto operator=(ShaderManager const&) -> ShaderManager& = delete;
 
-        auto getSpirv() const -> std::vector<uint32_t> const& { return m_spirv; }
+        ShaderManager& addShader(std::filesystem::path path,
+                                 std::string_view entrypoint                   = {},
+                                 std::optional<shaderc_shader_kind> shaderKind = {})
+        {
+            m_dirty = true;
+
+            m_shaderDescriptions.push_back({ std::move(path), entrypoint, std::move(shaderKind) });
+
+            return *this;
+        };
+
+        void build();
+
+        std::vector<vk::raii::ShaderModule> const& getShaderModules() const
+        {
+            MC_ASSERT(!m_dirty);
+
+            return m_shaderModules;
+        };
+
+        std::unordered_map<std::string, DescriptorSetBindings> const& getDescriptorBindings() const
+        {
+            MC_ASSERT(!m_dirty);
+
+            return m_descriptorSets;
+        }
 
     private:
         auto compileShader(std::string const& source_name,
@@ -134,6 +172,16 @@ namespace renderer::backend
                            std::string const& source,
                            std::string_view entrypoint = "main") -> std::vector<uint32_t>;
 
-        std::vector<uint32_t> m_spirv {};
+        Device* m_device { nullptr };
+
+        // This boolean is checked in the getter functions to ensure
+        // we dont ask for things before ensuring everything is up-to-date
+        bool m_dirty = true;
+
+        std::vector<ShaderDescription> m_shaderDescriptions;
+
+        std::vector<vk::raii::ShaderModule> m_shaderModules {};
+
+        std::unordered_map<std::string, DescriptorSetBindings> m_descriptorSets {};
     };
 }  // namespace renderer::backend
