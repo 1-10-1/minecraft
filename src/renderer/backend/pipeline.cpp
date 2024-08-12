@@ -7,13 +7,7 @@
 #include <mc/renderer/backend/vk_checker.hpp>
 #include <mc/utils.hpp>
 
-#include <algorithm>
-
-#include <ranges>
 #include <vulkan/vulkan_core.h>
-
-namespace rn = std::ranges;
-namespace vi = std::ranges::views;
 
 namespace renderer::backend
 {
@@ -36,6 +30,13 @@ namespace renderer::backend
 
         return *this;
     }
+
+    auto GraphicsPipelineConfig::setShaderManager(ShaderManager& manager) -> GraphicsPipelineConfig&
+    {
+        shaderManager = &manager;
+
+        return *this;
+    };
 
     auto GraphicsPipelineConfig::enableBlending(bool enable) -> GraphicsPipelineConfig&
     {
@@ -273,7 +274,7 @@ namespace renderer::backend
 
         vk::StructureChain<vk::GraphicsPipelineCreateInfo, vk::PipelineRenderingCreateInfoKHR> pipelineChain {
             vk::GraphicsPipelineCreateInfo()
-                // .setStages(shaderStages)
+                .setStages(config.shaderManager->getShaderStages())
                 .setPVertexInputState(&vertexInput)
                 .setPInputAssemblyState(&inputAssembly)
                 .setPViewportState(&viewportState)

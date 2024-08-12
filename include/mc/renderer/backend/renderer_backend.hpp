@@ -64,20 +64,6 @@ namespace renderer::backend
 #endif
     };
 
-    struct alignas(16) Light
-    {
-        glm::vec3 position;
-        float pad1;
-
-        glm::vec3 color;
-        float pad2;
-
-        struct AttenuationFactors
-        {
-            float quadratic, linear, constant, pad;
-        } attenuation;
-    };
-
     class RendererBackend
     {
     public:
@@ -108,8 +94,6 @@ namespace renderer::backend
             scheduleSwapchainUpdate();
         }
 
-        void toggleLightRevolution() { m_timer.isPaused() ? m_timer.unpause() : m_timer.pause(); }
-
     private:
         void initImgui(GLFWwindow* window);
         void renderImgui(vk::CommandBuffer cmdBuf, vk::ImageView targetImage);
@@ -137,14 +121,14 @@ namespace renderer::backend
         BasicImage m_drawImage, m_drawImageResolve, m_depthImage;
         vk::DescriptorSet m_sceneDataDescriptors { nullptr };
         vk::raii::DescriptorSetLayout m_sceneDataDescriptorLayout { nullptr },
-            m_materialDescriptorLayout { nullptr };
+            m_textureArrayDescriptorLayout { nullptr };
 
         vk::raii::DescriptorPool m_imGuiPool { nullptr };
 
         PipelineLayout m_pipelineLayout;
         GraphicsPipeline m_pipeline;
 
-        GPUBuffer m_gpuSceneDataBuffer, m_lightDataBuffer;
+        GPUBuffer m_gpuSceneDataBuffer;
 
         Model m_scene {};
 
@@ -154,8 +138,6 @@ namespace renderer::backend
         Image m_dummyTexture {};
 
         Timer m_timer;
-
-        Light m_light {};
 
         struct EngineStats
         {

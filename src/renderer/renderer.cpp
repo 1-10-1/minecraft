@@ -51,11 +51,6 @@ namespace renderer
                     m_backend.toggleVsync();
                     break;
                 }
-            case Key::R:
-                {
-                    m_backend.toggleLightRevolution();
-                    break;
-                }
         }
     }
 

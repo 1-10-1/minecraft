@@ -41,6 +41,7 @@ namespace renderer::backend
     class GraphicsPipelineConfig
     {
     public:
+        auto setShaderManager(ShaderManager& manager) -> GraphicsPipelineConfig&;
         auto enableBlending(bool enable = true) -> GraphicsPipelineConfig&;
         auto blendingSetAlphaBlend() -> GraphicsPipelineConfig&;
         auto blendingSetAdditiveBlend() -> GraphicsPipelineConfig&;
@@ -89,7 +90,7 @@ namespace renderer::backend
         auto setDepthAttachmentFormat(vk::Format format) -> GraphicsPipelineConfig&;
 
     private:
-        ShaderManager shaderManager {};
+        ShaderManager* shaderManager { nullptr };
 
         // Defaults
         // ********

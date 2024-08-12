@@ -73,5 +73,5 @@ layout(set = 0, binding = 0) uniform SceneData {
     float screenHeight;
     VertexBuffer vertexBuffer;
     MaterialBuffer materialBuffer;
-} sceneData;
+} scene;
 

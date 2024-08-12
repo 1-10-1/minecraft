@@ -12,10 +12,10 @@ layout (location = 4) out vec4 vPosition;
 layout (location = 5) out vec4 vColor;
 
 void main() {
-    Vertex vertex = sceneData.vertexBuffer.vertices[gl_VertexIndex];
-    Material material = sceneData.materialBuffer.materials[materialIndex];
+    Vertex vertex = scene.vertexBuffer.vertices[gl_VertexIndex];
+    Material material = scene.materialBuffer.materials[materialIndex];
 
-    gl_Position = sceneData.viewProj * model * vec4(vertex.pos, 1.0);
+    gl_Position = scene.viewProj * model * vec4(vertex.pos, 1.0);
 
     vPosition = model * vec4(vertex.pos, 1.0);
     vNormal = vertex.normal;

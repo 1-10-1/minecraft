@@ -8,6 +8,7 @@
 #include "device.hpp"
 #include "mc/asserts.hpp"
 
+#define SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS
 #include <shaderc/shaderc.h>
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan.hpp>
@@ -63,6 +64,7 @@ namespace renderer::backend
                                            char const* requesting_source,
                                            size_t include_depth) override
         {
+            // TODO(aether) do something about this hardcoding
             auto path = std::filesystem::path("../../shaders/") / requested_source;
 
             // FIXME(aether)
@@ -115,7 +117,7 @@ namespace renderer::backend
     struct ShaderDescription
     {
         std::filesystem::path path;
-        std::string_view entrypoint {};
+        std::string entrypoint {};
         std::optional<shaderc_shader_kind> shaderKind {};
     };
 
@@ -139,32 +141,27 @@ namespace renderer::backend
         ShaderManager(ShaderManager const&)                    = delete;
         auto operator=(ShaderManager const&) -> ShaderManager& = delete;
 
-        ShaderManager& addShader(std::filesystem::path path,
+        ShaderManager& addShader(std::string path,
                                  std::string_view entrypoint                   = {},
                                  std::optional<shaderc_shader_kind> shaderKind = {})
         {
             m_dirty = true;
 
-            m_shaderDescriptions.push_back({ std::move(path), entrypoint, std::move(shaderKind) });
+            m_shaderDescriptions.push_back({ std::filesystem::path("../../shaders/") / path.c_str(),
+                                             entrypoint.empty() ? "main" : entrypoint.data(),
+                                             std::move(shaderKind) });
 
             return *this;
         };
 
         void build();
 
-        std::vector<vk::raii::ShaderModule> const& getShaderModules() const
+        std::vector<vk::PipelineShaderStageCreateInfo> const& getShaderStages() const
         {
             MC_ASSERT(!m_dirty);
 
-            return m_shaderModules;
+            return m_shaderStageInfos;
         };
-
-        std::unordered_map<std::string, DescriptorSetBindings> const& getDescriptorBindings() const
-        {
-            MC_ASSERT(!m_dirty);
-
-            return m_descriptorSets;
-        }
 
     private:
         auto compileShader(std::string const& source_name,
@@ -181,7 +178,6 @@ namespace renderer::backend
         std::vector<ShaderDescription> m_shaderDescriptions;
 
         std::vector<vk::raii::ShaderModule> m_shaderModules {};
-
-        std::unordered_map<std::string, DescriptorSetBindings> m_descriptorSets {};
+        std::vector<vk::PipelineShaderStageCreateInfo> m_shaderStageInfos {};
     };
 }  // namespace renderer::backend
