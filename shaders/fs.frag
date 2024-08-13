@@ -13,6 +13,7 @@ layout (location = 2) in vec3 vNormal;
 layout (location = 3) in vec4 vTangent;
 layout (location = 4) in vec4 vPosition;
 layout (location = 5) in vec4 vColor;
+layout (location = 6) in flat uint vPrimitiveIndex;
 
 layout (location = 0) out vec4 frag_color;
 
@@ -28,16 +29,27 @@ float heaviside( float v ) {
 }
 
 void main() {
-    Material material = scene.materialBuffer.materials[materialIndex];
+    Primitive primitive = primitiveBuffer.primitives[vPrimitiveIndex];
 
-    vec4 diffSample     = texture(textures[nonuniformEXT((materialIndex * 5) + 0)], vTexcoord0);
-    vec3 metRoughSample = texture(textures[nonuniformEXT((materialIndex * 5) + 1)], vTexcoord0).rgb;
-    vec4 occlSample     = texture(textures[nonuniformEXT((materialIndex * 5) + 2)], vTexcoord0);
-    vec4 emisSample     = texture(textures[nonuniformEXT((materialIndex * 5) + 3)], vTexcoord0);
-    vec3 normalSample   = texture(textures[nonuniformEXT((materialIndex * 5) + 4)], vTexcoord0).rgb;
+    Material material = materialBuffer.materials[primitive.materialIndex];
+
+    vec4 diffSample     = texture(textures[nonuniformEXT((primitive.materialIndex * 5) + 0)],
+                                  material.colorTextureSet == 0 ? vTexcoord0 : vTexcoord1);
+
+    vec3 metRoughSample = texture(textures[nonuniformEXT((primitive.materialIndex * 5) + 1)],
+                                  material.physicalDescriptorTextureSet == 0 ? vTexcoord0 : vTexcoord1).rgb;
+
+    vec4 occlSample     = texture(textures[nonuniformEXT((primitive.materialIndex * 5) + 2)],
+                                  material.occlusionTextureSet == 0 ? vTexcoord0 : vTexcoord1);
+
+    vec4 emisSample     = texture(textures[nonuniformEXT((primitive.materialIndex * 5) + 3)],
+                                  material.emissiveTextureSet == 0 ? vTexcoord0 : vTexcoord1);
+
+    vec3 normalSample   = texture(textures[nonuniformEXT((primitive.materialIndex * 5) + 4)],
+                                  material.normalTextureSet == 0 ? vTexcoord0 : vTexcoord1).rgb;
 
     frag_color = diffSample;
-    
+
     if (material.colorTextureSet != -1) {
         frag_color *= material.baseColorFactor;
     }

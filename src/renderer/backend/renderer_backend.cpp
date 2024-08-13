@@ -447,8 +447,6 @@ namespace renderer::backend
             .screenWeight      = static_cast<float>(m_drawImage.getDimensions().width),
             .sunlightDirection = glm::vec3 { -0.2f, -1.0f, -0.3f },
             .screenHeight      = static_cast<float>(m_drawImage.getDimensions().height),
-            .vertexBuffer      = m_scene.vertexBufferAddress,
-            .materialBuffer    = m_scene.materialBufferAddress,
         };
     }
 }  // namespace renderer::backend

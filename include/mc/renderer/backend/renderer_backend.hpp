@@ -26,10 +26,11 @@ namespace renderer::backend
 {
     struct GPUDrawPushConstants
     {
-        glm::mat4 model { glm::identity<glm::mat4>() };
-
-        uint32_t materialIndex { 0 };
+        vk::DeviceAddress vertexBuffer {};
+        vk::DeviceAddress materialBuffer {};
+        vk::DeviceAddress primitiveBuffer {};
     };
+
     enum class PBRWorkflows
     {
         MetallicRoughness  = 0,
@@ -48,9 +49,6 @@ namespace renderer::backend
         float screenWeight {};
         glm::vec3 sunlightDirection {};
         float screenHeight {};
-
-        vk::DeviceAddress vertexBuffer {};
-        vk::DeviceAddress materialBuffer {};
     };
 
     struct FrameResources

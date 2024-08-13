@@ -183,6 +183,8 @@ namespace renderer::backend
         BoundingBox bb;
 
         inline static uint64_t totalPrims = 0;
+
+        vk::DrawIndexedIndirectCommand drawCommand;
     };
 
     struct Mesh
@@ -315,6 +317,12 @@ namespace renderer::backend
         float end   = std::numeric_limits<float>::min();
     };
 
+    struct PrimitiveShaderData
+    {
+        glm::mat4 matrix;
+        uint32_t materialIndex;
+    };
+
     struct Model
     {
         Model() = default;
@@ -344,11 +352,14 @@ namespace renderer::backend
         GPUBuffer indices;
         GPUBuffer vertices;
         GPUBuffer materialBuffer;
+        GPUBuffer drawIndirectBuffer;
+        GPUBuffer primitiveDataBuffer;
 
         vk::DescriptorSet bindlessMaterialDescriptorSet { nullptr };
 
         vk::DeviceSize vertexBufferAddress { 0 };
         vk::DeviceSize materialBufferAddress { 0 };
+        vk::DeviceSize primitiveDataBufferAddress { 0 };
 
         glm::mat4 aabb;
 
@@ -357,6 +368,9 @@ namespace renderer::backend
         std::vector<Node*> linearNodes;
 
         std::vector<Skin*> skins;
+
+        std::vector<vk::DrawIndexedIndirectCommand> drawIndirectCommands;
+        std::vector<PrimitiveShaderData> primitiveData;
 
         std::vector<GlTFTexture> textures;
         std::vector<TextureSampler> textureSamplers;
@@ -426,6 +440,8 @@ namespace renderer::backend
         Node* findNode(Node* parent, uint32_t index);
 
         Node* nodeFromIndex(uint32_t index);
+
+        void preparePrimitiveIndirectData(Node* node);
 
         static constexpr std::array<std::string_view, 4> const supportedExtensions {
             "KHR_texture_basisu",

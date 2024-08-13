@@ -10,19 +10,22 @@ layout (location = 2) out vec3 vNormal;
 layout (location = 3) out vec4 vTangent;
 layout (location = 4) out vec4 vPosition;
 layout (location = 5) out vec4 vColor;
+layout (location = 6) out flat uint vPrimitiveIndex;
 
 void main() {
-    Vertex vertex = scene.vertexBuffer.vertices[gl_VertexIndex];
-    Material material = scene.materialBuffer.materials[materialIndex];
+    Vertex vertex = vertexBuffer.vertices[gl_VertexIndex];
+    // Primitive primitive = primitiveBuffer.primitives[gl_DrawID];
 
-    gl_Position = scene.viewProj * model * vec4(vertex.pos, 1.0);
+    gl_Position = scene.viewProj * /* primitive.matrix * */ vec4(vertex.pos, 1.0);
 
-    vPosition = model * vec4(vertex.pos, 1.0);
+    vPosition = /* primitive.matrix * */ vec4(vertex.pos, 1.0);
     vNormal = vertex.normal;
     vColor = vertex.color;
     vTexcoord0 = vertex.uv0;
     vTexcoord1 = vertex.uv1;
     vTangent = vertex.tangent;
+
+    vPrimitiveIndex = gl_DrawID;
 
     // CAREFUL! We used to generate normals if they weren't found before, but no longer
     // vNormal = mat3(model_inv) * normal;

@@ -263,25 +263,30 @@ namespace renderer::backend
 
         vk::StructureChain<vk::PhysicalDeviceFeatures2,
                            vk::PhysicalDeviceVulkan12Features,
-                           vk::PhysicalDeviceVulkan13Features> chain {
-            {
-                .features = { .sampleRateShading             = true,
-                              .fillModeNonSolid              = true,
-                              .samplerAnisotropy             = true,
-                              .shaderStorageImageMultisample = true, },
-            },
-            {
-                .descriptorIndexing  = true,
-                .shaderSampledImageArrayNonUniformIndexing = true,
-                .descriptorBindingPartiallyBound = true,
-                .runtimeDescriptorArray = true,
-                .bufferDeviceAddress = true,
-            },
+                           vk::PhysicalDeviceVulkan13Features,vk::PhysicalDeviceShaderDrawParametersFeatures >
+            chain {
+                {
+                 .features = { .sampleRateShading             = true,
+                               .multiDrawIndirect             = true, 
+                               .fillModeNonSolid              = true,
+                               .samplerAnisotropy             = true,
+                               .shaderStorageImageMultisample = true, },
+                 },
+                {
+                 .descriptorIndexing                        = true,
+                 .shaderSampledImageArrayNonUniformIndexing = true,
+                 .descriptorBindingPartiallyBound           = true,
+                 .runtimeDescriptorArray                    = true,
+                 .bufferDeviceAddress                       = true,
+                 },
 
-            {
-                .synchronization2 = true,
-                .dynamicRendering = true,
-            },
+                {
+                 .synchronization2 = true,
+                 .dynamicRendering = true,
+                 },
+                {
+                 .shaderDrawParameters = true,
+                },
         };
 
         m_logicalHandle =

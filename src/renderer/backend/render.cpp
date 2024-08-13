@@ -168,10 +168,27 @@ namespace renderer::backend
                                   },
                                   {});
 
-        for (auto node : m_scene.nodes)
-        {
-            renderNode(cmdBuf, node);
-        }
+        GPUDrawPushConstants pushConstants {
+            .vertexBuffer    = m_scene.vertexBufferAddress,
+            .materialBuffer  = m_scene.materialBufferAddress,
+            .primitiveBuffer = m_scene.primitiveDataBufferAddress,
+        };
+
+        cmdBuf.pushConstants(m_pipelineLayout,
+                             vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                             0,
+                             sizeof(GPUDrawPushConstants),
+                             &pushConstants);
+
+        cmdBuf.drawIndexedIndirect(m_scene.drawIndirectBuffer,
+                                   0,
+                                   m_scene.drawIndirectCommands.size(),
+                                   sizeof(decltype(m_scene.drawIndirectCommands)::value_type));
+
+        // for (auto node : m_scene.nodes)
+        // {
+        //     renderNode(cmdBuf, node);
+        // }
 
         // m_stats.drawCount += m_gltfScene.getLastDrawCount();
         // m_stats.triangleCount += m_gltfScene.getLastTriangleCount();
@@ -183,16 +200,16 @@ namespace renderer::backend
     {
         for (Primitive& prim : node->mesh->primitives)
         {
-            GPUDrawPushConstants pushConstants {
-                .model         = node->mesh->uniformBlock.matrix * node->matrix,
-                .materialIndex = prim.materialIndex,
-            };
-
-            cmdBuf.pushConstants(m_pipelineLayout,
-                                 vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-                                 0,
-                                 sizeof(GPUDrawPushConstants),
-                                 &pushConstants);
+            // GPUDrawPushConstants pushConstants {
+            //     .model         = node->mesh->uniformBlock.matrix * node->matrix,
+            //     .materialIndex = prim.materialIndex,
+            // };
+            //
+            // cmdBuf.pushConstants(m_pipelineLayout,
+            //                      vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+            //                      0,
+            //                      sizeof(GPUDrawPushConstants),
+            //                      &pushConstants);
 
             {
 #if PROFILED

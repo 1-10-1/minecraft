@@ -1744,6 +1744,7 @@ namespace renderer::backend
         {
             loadAnimations(gltfModel);
         }
+
         loadSkins(gltfModel);
 
         for (auto node : linearNodes)
@@ -1753,12 +1754,82 @@ namespace renderer::backend
             {
                 node->skin = skins[node->skinIndex];
             }
-            // Initial pose
+
+            // Initial pose and matrix update
             if (node->mesh)
             {
                 node->update();
             }
         }
+
+        for (Node* node : nodes)
+        {
+            preparePrimitiveIndirectData(node);
+        }
+
+        // TODO(aether) this is getting trivial
+        GPUBuffer stagingIndirectBuffer(
+            *device,
+            *allocator,
+            "Draw indirect buffer (staging)",
+            drawIndirectCommands.size() * sizeof(decltype(drawIndirectCommands)::value_type),
+            vk::BufferUsageFlagBits::eTransferSrc,
+            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+        // TODO(aether) this is getting trivial
+        GPUBuffer stagingPrimitiveDataBuffer(
+            *device,
+            *allocator,
+            "Primitive data buffer (staging)",
+            primitiveData.size() * sizeof(decltype(primitiveData)::value_type),
+            vk::BufferUsageFlagBits::eTransferSrc,
+            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+        std::memcpy(stagingIndirectBuffer.getMappedData(),
+                    drawIndirectCommands.data(),
+                    stagingIndirectBuffer.getSize());
+
+        std::memcpy(stagingPrimitiveDataBuffer.getMappedData(),
+                    primitiveData.data(),
+                    stagingPrimitiveDataBuffer.getSize());
+
+        drawIndirectBuffer =
+            GPUBuffer(*device,
+                      *allocator,
+                      "Draw indirect buffer",
+                      drawIndirectCommands.size() * sizeof(decltype(drawIndirectCommands)::value_type),
+                      vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndirectBuffer,
+                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                      VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+
+        primitiveDataBuffer =
+            GPUBuffer(*device,
+                      *allocator,
+                      "Primitive data buffer",
+                      primitiveData.size() * sizeof(decltype(primitiveData)::value_type),
+                      vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                      VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+
+        {
+            ScopedCommandBuffer(*device, cmdManager->getTransferCmdPool(), device->getTransferQueue(), true)
+                ->copyBuffer(stagingIndirectBuffer,
+                             drawIndirectBuffer,
+                             vk::BufferCopy().setSize(drawIndirectCommands.size() *
+                                                      sizeof(decltype(drawIndirectCommands)::value_type)));
+        }
+        {
+            ScopedCommandBuffer(*device, cmdManager->getTransferCmdPool(), device->getTransferQueue(), true)
+                ->copyBuffer(stagingPrimitiveDataBuffer,
+                             primitiveDataBuffer,
+                             vk::BufferCopy().setSize(primitiveData.size() *
+                                                      sizeof(decltype(primitiveData)::value_type)));
+        }
+
+        primitiveDataBufferAddress =
+            device->get().getBufferAddress(vk::BufferDeviceAddressInfo().setBuffer(primitiveDataBuffer));
 
         size_t vertexBufferSize = vertexCount * sizeof(Vertex);
         size_t indexBufferSize  = indexCount * sizeof(uint32_t);
@@ -1828,6 +1899,34 @@ namespace renderer::backend
         setupDescriptors();
     }
 
+    // Where?
+    // Currently, everything works except the primitive buffer data or the drawID or something is incorrect
+    // using the primitive buffer gives incorrect values
+
+    void Model::preparePrimitiveIndirectData(Node* node)
+    {
+        for (Primitive& primitive : node->mesh->primitives)
+        {
+            drawIndirectCommands.push_back({
+                .indexCount    = primitive.indexCount,
+                .instanceCount = 1,
+                .firstIndex    = primitive.firstIndex,
+                .vertexOffset  = 0,
+                .firstInstance = 0,
+            });
+
+            primitiveData.push_back({
+                .matrix        = node->matrix * node->mesh->uniformBlock.matrix,
+                .materialIndex = primitive.materialIndex,
+            });
+        }
+
+        for (Node* n : node->children)
+        {
+            preparePrimitiveIndirectData(n);
+        }
+    };
+
     void Model::drawNode(Node* node, vk::CommandBuffer commandBuffer)
     {
         if (node->mesh)
@@ -1848,10 +1947,15 @@ namespace renderer::backend
     {
         commandBuffer.bindIndexBuffer(indices, 0, vk::IndexType::eUint32);
 
-        for (auto& node : nodes)
-        {
-            drawNode(node, commandBuffer);
-        }
+        commandBuffer.drawIndexedIndirect(drawIndirectBuffer,
+                                          0,
+                                          drawIndirectCommands.size(),
+                                          sizeof(decltype(drawIndirectCommands)::value_type));
+
+        // for (auto& node : nodes)
+        // {
+        //     drawNode(node, commandBuffer);
+        // }
     }
 
     void Model::calculateBoundingBox(Node* node, Node* parent)

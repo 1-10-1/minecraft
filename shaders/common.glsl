@@ -9,9 +9,8 @@ uint MaterialFeatures_EmissiveTexture =  1 << 4;
 uint MaterialFeatures_TangentVertexAttribute = 1 << 5;
 uint MaterialFeatures_TexcoordVertexAttribute = 1 << 6;
 
-layout(push_constant) uniform PushConstants
-{
-    mat4 model;
+struct Primitive {
+    mat4 matrix;
     uint materialIndex;
 };
 
@@ -62,6 +61,17 @@ layout(buffer_reference, std430) readonly buffer MaterialBuffer {
 	Material materials[];
 };
 
+layout(buffer_reference, std430) readonly buffer PrimitiveBuffer {
+	Primitive primitives[];
+};
+
+layout(push_constant) uniform PushConstants
+{
+    VertexBuffer vertexBuffer;
+    MaterialBuffer materialBuffer;
+    PrimitiveBuffer primitiveBuffer;
+};
+
 layout(set = 0, binding = 0) uniform SceneData {
     mat4 view;
     mat4 proj;
@@ -71,7 +81,5 @@ layout(set = 0, binding = 0) uniform SceneData {
     float screenWidth;
     vec3 sunlightDirection;
     float screenHeight;
-    VertexBuffer vertexBuffer;
-    MaterialBuffer materialBuffer;
 } scene;
 
