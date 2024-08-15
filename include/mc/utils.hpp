@@ -10,6 +10,23 @@
 
 namespace utils
 {
+    inline auto largeNumToHumanReadable(float num) -> std::string
+    {
+        std::array suffixes {
+            "", "thousand", "million", "billion", "trillion", "quadrillion", "quintillion"
+        };
+
+        size_t i = 0;
+
+        while (num >= 1000.0f && i < suffixes.size() - 1)
+        {
+            num /= 1000.0f;
+            ++i;
+        }
+
+        return std::format("{:.2f} {}", num, suffixes[i]);
+    }
+
     template<typename SizeType = char>
     inline auto readBytes(std::filesystem::path const& filepath) -> std::vector<SizeType>
     {

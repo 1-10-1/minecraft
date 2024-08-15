@@ -1,4 +1,5 @@
 #include "mc/renderer/backend/renderer_backend.hpp"
+#include "mc/utils.hpp"
 #include <mc/renderer/backend/image.hpp>
 #include <mc/renderer/backend/info_structs.hpp>
 #include <mc/renderer/backend/render.hpp>
@@ -153,8 +154,6 @@ namespace renderer::backend
         m_stats.drawCount     = 0;
         m_stats.triangleCount = 0;
 
-        // m_gltfScene.draw(cmdBuf, m_pipeline, m_pipelineLayout, m_sceneDataDescriptors);
-
         if (m_scene.indices)
         {
             cmdBuf.bindIndexBuffer(m_scene.indices, 0, vk::IndexType::eUint32);
@@ -194,55 +193,8 @@ namespace renderer::backend
                                        sizeof(decltype(m_scene.drawIndirectCommands)::value_type));
         }
 
-        // for (auto node : m_scene.nodes)
-        // {
-        //     renderNode(cmdBuf, node);
-        // }
-
-        // m_stats.drawCount += m_gltfScene.getLastDrawCount();
-        // m_stats.triangleCount += m_gltfScene.getLastTriangleCount();
-
         cmdBuf.endRendering();
     }
-
-    void RendererBackend::renderNode(vk::CommandBuffer cmdBuf, Node* node)
-    {
-        for (Primitive& prim : node->mesh->primitives)
-        {
-            // GPUDrawPushConstants pushConstants {
-            //     .model         = node->mesh->uniformBlock.matrix * node->matrix,
-            //     .materialIndex = prim.materialIndex,
-            // };
-            //
-            // cmdBuf.pushConstants(m_pipelineLayout,
-            //                      vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-            //                      0,
-            //                      sizeof(GPUDrawPushConstants),
-            //                      &pushConstants);
-
-            {
-#if PROFILED
-                auto& tracyCtx = m_frameResources[m_currentFrame].tracyContext;
-#endif
-
-                TracyVkZone(tracyCtx, cmdBuf, "draw call");
-
-                if (prim.hasIndices)
-                {
-                    cmdBuf.drawIndexed(prim.indexCount, 1, prim.firstIndex, 0, 0);
-                }
-                else
-                {
-                    cmdBuf.draw(prim.vertexCount, 1, 0, 0);
-                }
-            }
-        }
-
-        for (auto child : node->children)
-        {
-            renderNode(cmdBuf, child);
-        }
-    };
 
     void RendererBackend::recordCommandBuffer(uint32_t imageIndex)
     {
@@ -374,30 +326,12 @@ namespace renderer::backend
                                "Vsync: %s",
                                m_surface.getVsync() ? "on" : "off");
 
-            ImGui::Text("Triangles %i", m_scene.triangleCount);
-            ImGui::Text("Draws %i", m_scene.drawIndirectCommands.size());
+            std::string humanReadableTriCount = utils::largeNumToHumanReadable(m_scene.triangleCount);
+            ImGui::Text("%s triangles", humanReadableTriCount.data());
+            ImGui::Text("%i draws", m_scene.drawIndirectCommands.size());
 
             ImGui::End();
         }
-
-        // {
-        //     ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - windowPadding, windowPadding),
-        //                             ImGuiCond_Always,
-        //                             ImVec2(1.0f, 0.0f));
-        //     ImGui::SetNextWindowSize({ 400.f, 0.f });
-        //
-        //     ImGui::Begin("Light", nullptr, window_flags);
-        //
-        //     ImGui::TextColored({ m_light.color.r, m_light.color.g, m_light.color.b, 1.f },
-        //                        "{ %.1f, %.1f %.1f }",
-        //                        m_light.position.x,
-        //                        m_light.position.y,
-        //                        m_light.position.z);
-        //
-        //     ImGui::ColorPicker3("Color", glm::value_ptr(m_light.color));
-        //
-        //     ImGui::End();
-        // }
 
         {
             ImGui::SetNextWindowPos(ImVec2(windowPadding, ImGui::GetIO().DisplaySize.y - windowPadding),

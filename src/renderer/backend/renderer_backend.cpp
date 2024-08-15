@@ -232,7 +232,7 @@ namespace renderer::backend
                         m_dummySampler);
 
         auto glTFFile =
-            std::filesystem::path(std::format("../../gltfSampleAssets/Models/{0}/glTF/{0}.gltf", "Cube"));
+            std::filesystem::path(std::format("../../gltfSampleAssets/Models/{0}/glTF/{0}.gltf", "Sponza"));
 
         logger::info("Loading scene from {}..", glTFFile.c_str());
 
