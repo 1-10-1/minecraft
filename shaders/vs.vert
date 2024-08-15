@@ -14,11 +14,11 @@ layout (location = 6) out flat uint vPrimitiveIndex;
 
 void main() {
     Vertex vertex = vertexBuffer.vertices[gl_VertexIndex];
-    // Primitive primitive = primitiveBuffer.primitives[gl_DrawID];
+    Primitive primitive = primitiveBuffer.primitives[gl_DrawID];
 
-    gl_Position = scene.viewProj * /* primitive.matrix * */ vec4(vertex.pos, 1.0);
+    gl_Position = scene.viewProj * primitive.matrix * vec4(vertex.pos, 1.0);
 
-    vPosition = /* primitive.matrix * */ vec4(vertex.pos, 1.0);
+    vPosition = primitive.matrix * vec4(vertex.pos, 1.0);
     vNormal = vertex.normal;
     vColor = vertex.color;
     vTexcoord0 = vertex.uv0;
@@ -26,7 +26,4 @@ void main() {
     vTangent = vertex.tangent;
 
     vPrimitiveIndex = gl_DrawID;
-
-    // CAREFUL! We used to generate normals if they weren't found before, but no longer
-    // vNormal = mat3(model_inv) * normal;
 }

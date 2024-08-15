@@ -317,7 +317,7 @@ namespace renderer::backend
         float end   = std::numeric_limits<float>::min();
     };
 
-    struct PrimitiveShaderData
+    struct alignas(16) PrimitiveShaderData
     {
         glm::mat4 matrix;
         uint32_t materialIndex;
@@ -362,6 +362,8 @@ namespace renderer::backend
         vk::DeviceSize primitiveDataBufferAddress { 0 };
 
         glm::mat4 aabb;
+
+        uint64_t triangleCount;
 
         // make nodes a vector of unique ptrs maybe?
         std::vector<Node*> nodes;
@@ -423,11 +425,6 @@ namespace renderer::backend
         void loadAnimations(tinygltf::Model& gltfModel);
 
         void loadFromFile(std::string filename, float scale = 1.0f);
-
-        // These are only called for the skybox, not the scene (for some reason, figure it out)
-        void drawNode(Node* node, vk::CommandBuffer commandBuffer);
-
-        void draw(vk::CommandBuffer commandBuffer);
 
         void calculateBoundingBox(Node* node, Node* parent);
 

@@ -1,3 +1,4 @@
+#include "mc/renderer/backend/renderer_backend.hpp"
 #include <mc/renderer/backend/image.hpp>
 #include <mc/renderer/backend/info_structs.hpp>
 #include <mc/renderer/backend/render.hpp>
@@ -112,6 +113,8 @@ namespace renderer::backend
                                    .setImageView(m_drawImage.getImageView())
                                    .setImageLayout(vk::ImageLayout::eGeneral)
                                    .setLoadOp(vk::AttachmentLoadOp::eClear)
+                                   .setClearValue(vk::ClearValue(vk::ClearColorValue(
+                                       std::array { 107.f / 255.f, 102.f / 255.f, 198.f / 255.f, 1.f })))
                                    .setStoreOp(vk::AttachmentStoreOp::eStore)
                                    .setResolveImageView(m_drawImageResolve.getImageView())
                                    .setResolveImageLayout(vk::ImageLayout::eGeneral)
@@ -180,10 +183,16 @@ namespace renderer::backend
                              sizeof(GPUDrawPushConstants),
                              &pushConstants);
 
-        cmdBuf.drawIndexedIndirect(m_scene.drawIndirectBuffer,
-                                   0,
-                                   m_scene.drawIndirectCommands.size(),
-                                   sizeof(decltype(m_scene.drawIndirectCommands)::value_type));
+        {
+            uint64_t numDraws = m_scene.drawIndirectCommands.size();
+
+            TracyVkZone(m_frameResources[m_currentFrame].tracyContext, cmdBuf, "Indirect draw call");
+
+            cmdBuf.drawIndexedIndirect(m_scene.drawIndirectBuffer,
+                                       0,
+                                       numDraws,
+                                       sizeof(decltype(m_scene.drawIndirectCommands)::value_type));
+        }
 
         // for (auto node : m_scene.nodes)
         // {
@@ -365,8 +374,8 @@ namespace renderer::backend
                                "Vsync: %s",
                                m_surface.getVsync() ? "on" : "off");
 
-            ImGui::Text("Triangles %i", m_stats.triangleCount);
-            ImGui::Text("Draws %i", m_stats.drawCount);
+            ImGui::Text("Triangles %i", m_scene.triangleCount);
+            ImGui::Text("Draws %i", m_scene.drawIndirectCommands.size());
 
             ImGui::End();
         }

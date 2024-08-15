@@ -34,19 +34,19 @@ void main() {
     Material material = materialBuffer.materials[primitive.materialIndex];
 
     vec4 diffSample     = texture(textures[nonuniformEXT((primitive.materialIndex * 5) + 0)],
-                                  material.colorTextureSet == 0 ? vTexcoord0 : vTexcoord1);
+                                  material.colorTextureSet > 0 ? vTexcoord1 : vTexcoord0);
 
     vec3 metRoughSample = texture(textures[nonuniformEXT((primitive.materialIndex * 5) + 1)],
-                                  material.physicalDescriptorTextureSet == 0 ? vTexcoord0 : vTexcoord1).rgb;
+                                  material.physicalDescriptorTextureSet > 0 ? vTexcoord1 : vTexcoord0).rgb;
 
     vec4 occlSample     = texture(textures[nonuniformEXT((primitive.materialIndex * 5) + 2)],
-                                  material.occlusionTextureSet == 0 ? vTexcoord0 : vTexcoord1);
+                                  material.occlusionTextureSet > 0 ? vTexcoord1 : vTexcoord0);
 
     vec4 emisSample     = texture(textures[nonuniformEXT((primitive.materialIndex * 5) + 3)],
-                                  material.emissiveTextureSet == 0 ? vTexcoord0 : vTexcoord1);
+                                  material.emissiveTextureSet > 0 ? vTexcoord1 : vTexcoord0);
 
     vec3 normalSample   = texture(textures[nonuniformEXT((primitive.materialIndex * 5) + 4)],
-                                  material.normalTextureSet == 0 ? vTexcoord0 : vTexcoord1).rgb;
+                                  material.normalTextureSet > 0 ? vTexcoord1 : vTexcoord0).rgb;
 
     frag_color = diffSample;
 

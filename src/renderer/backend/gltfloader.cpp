@@ -1813,20 +1813,19 @@ namespace renderer::backend
                       VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
                       VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
 
-        {
-            ScopedCommandBuffer(*device, cmdManager->getTransferCmdPool(), device->getTransferQueue(), true)
-                ->copyBuffer(stagingIndirectBuffer,
-                             drawIndirectBuffer,
-                             vk::BufferCopy().setSize(drawIndirectCommands.size() *
-                                                      sizeof(decltype(drawIndirectCommands)::value_type)));
-        }
-        {
-            ScopedCommandBuffer(*device, cmdManager->getTransferCmdPool(), device->getTransferQueue(), true)
-                ->copyBuffer(stagingPrimitiveDataBuffer,
-                             primitiveDataBuffer,
-                             vk::BufferCopy().setSize(primitiveData.size() *
-                                                      sizeof(decltype(primitiveData)::value_type)));
-        }
+        ScopedCommandBuffer cmdBuf(
+            *device, cmdManager->getTransferCmdPool(), device->getTransferQueue(), true);
+
+        cmdBuf->copyBuffer(stagingIndirectBuffer,
+                           drawIndirectBuffer,
+                           vk::BufferCopy().setSize(drawIndirectCommands.size() *
+                                                    sizeof(decltype(drawIndirectCommands)::value_type)));
+        cmdBuf->copyBuffer(
+            stagingPrimitiveDataBuffer,
+            primitiveDataBuffer,
+            vk::BufferCopy().setSize(primitiveData.size() * sizeof(decltype(primitiveData)::value_type)));
+
+        cmdBuf.flush();
 
         primitiveDataBufferAddress =
             device->get().getBufferAddress(vk::BufferDeviceAddressInfo().setBuffer(primitiveDataBuffer));
@@ -1835,9 +1834,6 @@ namespace renderer::backend
         size_t indexBufferSize  = indexCount * sizeof(uint32_t);
 
         MC_ASSERT(vertexBufferSize > 0);
-
-        ScopedCommandBuffer cmdBuf(
-            *device, cmdManager->getTransferCmdPool(), device->getTransferQueue(), true);
 
         GPUBuffer vertexStaging(*device,
                                 *allocator,
@@ -1899,10 +1895,6 @@ namespace renderer::backend
         setupDescriptors();
     }
 
-    // Where?
-    // Currently, everything works except the primitive buffer data or the drawID or something is incorrect
-    // using the primitive buffer gives incorrect values
-
     void Model::preparePrimitiveIndirectData(Node* node)
     {
         for (Primitive& primitive : node->mesh->primitives)
@@ -1915,8 +1907,10 @@ namespace renderer::backend
                 .firstInstance = 0,
             });
 
+            triangleCount += primitive.indexCount / 3;
+
             primitiveData.push_back({
-                .matrix        = node->matrix * node->mesh->uniformBlock.matrix,
+                .matrix        = node->mesh->uniformBlock.matrix * node->matrix,
                 .materialIndex = primitive.materialIndex,
             });
         }
@@ -1926,37 +1920,6 @@ namespace renderer::backend
             preparePrimitiveIndirectData(n);
         }
     };
-
-    void Model::drawNode(Node* node, vk::CommandBuffer commandBuffer)
-    {
-        if (node->mesh)
-        {
-            for (Primitive& primitive : node->mesh->primitives)
-            {
-                commandBuffer.drawIndexed(primitive.indexCount, 1, primitive.firstIndex, 0, 0);
-            }
-        }
-
-        for (auto& child : node->children)
-        {
-            drawNode(child, commandBuffer);
-        }
-    }
-
-    void Model::draw(vk::CommandBuffer commandBuffer)
-    {
-        commandBuffer.bindIndexBuffer(indices, 0, vk::IndexType::eUint32);
-
-        commandBuffer.drawIndexedIndirect(drawIndirectBuffer,
-                                          0,
-                                          drawIndirectCommands.size(),
-                                          sizeof(decltype(drawIndirectCommands)::value_type));
-
-        // for (auto& node : nodes)
-        // {
-        //     drawNode(node, commandBuffer);
-        // }
-    }
 
     void Model::calculateBoundingBox(Node* node, Node* parent)
     {
