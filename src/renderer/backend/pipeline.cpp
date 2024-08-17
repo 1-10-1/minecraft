@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <mc/asserts.hpp>
 #include <mc/exceptions.hpp>
 #include <mc/renderer/backend/pipeline.hpp>
@@ -202,8 +203,10 @@ namespace renderer::backend
     };
 
     GraphicsPipeline::GraphicsPipeline(Device const& device,
+                                       std::string_view name,
                                        PipelineLayout const& layout,
                                        GraphicsPipelineConfig const& config)
+        : m_name { name }
     {
         MC_ASSERT(config.colorAttachmentFormat.has_value());
         MC_ASSERT(config.depthAttachmentFormat.has_value());
@@ -292,9 +295,71 @@ namespace renderer::backend
                 .setDepthAttachmentFormat(config.depthAttachmentFormat.value()),
         };
 
-        m_pipeline = device->createGraphicsPipeline({ nullptr },
+        MC_ASSERT_MSG(!name.contains(' '), "Pipeline name must not contain a space");
+
+        std::filesystem::path cachePath = std::format("cache/{}.pcache", name);
+
+        if (!std::filesystem::exists(cachePath.parent_path()))
+        {
+            std::filesystem::create_directory(cachePath.parent_path());
+        }
+
+        vk::raii::PipelineCache pipelineCache { nullptr };
+        vk::PipelineCacheCreateInfo cacheCreateInfo {};
+
+        // TODO(aether) default it to uchar?
+        std::vector<char> cacheBlob;
+
+        bool newCache = true;
+
+        if (std::filesystem::exists(cachePath))
+        {
+            cacheBlob = utils::readBytes(cachePath);
+
+            MC_ASSERT(cacheBlob.size() >= sizeof(vk::PipelineCacheHeaderVersion));
+
+            vk::PipelineCacheHeaderVersionOne* cacheHeader =
+                reinterpret_cast<vk::PipelineCacheHeaderVersionOne*>(cacheBlob.data());
+
+            vk::PhysicalDeviceProperties deviceProperties = device.getDeviceProperties();
+
+            if (cacheHeader->deviceID == deviceProperties.deviceID &&
+                cacheHeader->vendorID == deviceProperties.vendorID &&
+                memcmp(cacheHeader->pipelineCacheUUID, deviceProperties.pipelineCacheUUID, vk::UuidSize) == 0)
+            {
+                cacheCreateInfo.setPInitialData(cacheBlob.data()).setInitialDataSize(cacheBlob.size());
+
+                newCache = false;
+            }
+        }
+
+        pipelineCache = device->createPipelineCache(cacheCreateInfo) >> ResultChecker();
+
+        auto timerStart = std::chrono::high_resolution_clock::now();
+
+        m_pipeline = device->createGraphicsPipeline(pipelineCache,
                                                     pipelineChain.get<vk::GraphicsPipelineCreateInfo>()) >>
                      ResultChecker();
+
+        auto timeTaken =
+            std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - timerStart)
+                .count();
+
+        logger::info(
+            "Pipeline {} took {:.2f}ms to create {} a cache", name, timeTaken, newCache ? "without" : "with");
+
+        if (newCache)
+        {
+            std::vector<uint8_t> cacheData = pipelineCache.getData();
+
+            std::ofstream stream(cachePath, std::ios::trunc);
+
+            MC_ASSERT(stream.is_open());
+
+            stream.write(reinterpret_cast<char const*>(cacheData.data()), cacheData.size());
+
+            stream.close();
+        }
     };
 
     ComputePipeline::ComputePipeline(Device const& device,
@@ -302,6 +367,8 @@ namespace renderer::backend
                                      std::filesystem::path const& path,
                                      std::string_view entryPoint)
     {
+        MC_ASSERT_MSG(false, "This code has been dead for a while. Implement pipeline caches first.");
+
         vk::raii::ShaderModule shaderModule = createShaderModule(device.get(), path);
 
         vk::ComputePipelineCreateInfo pipelineCreateInfo {

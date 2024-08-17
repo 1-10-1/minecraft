@@ -170,7 +170,7 @@ namespace renderer::backend
                     .setSampleCount(m_device.getMaxUsableSampleCount())
                     .setSampleShadingSettings(true, 0.1f);
 
-            m_pipeline = GraphicsPipeline(m_device, m_pipelineLayout, pipelineConfig);
+            m_pipeline = GraphicsPipeline(m_device, "main_pipeline", m_pipelineLayout, pipelineConfig);
         }
 
         loadGltfScene();

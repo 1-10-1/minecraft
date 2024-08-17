@@ -184,6 +184,7 @@ namespace renderer::backend
         ~GraphicsPipeline() = default;
 
         GraphicsPipeline(Device const& device,
+                         std::string_view name,
                          PipelineLayout const& layout,
                          GraphicsPipelineConfig const& config);
 
@@ -199,6 +200,8 @@ namespace renderer::backend
 
     private:
         vk::raii::Pipeline m_pipeline { nullptr };
+
+        std::string m_name;
     };
 
     class ComputePipeline
