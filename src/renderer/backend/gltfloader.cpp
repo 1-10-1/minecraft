@@ -1713,7 +1713,7 @@ namespace renderer::backend
             // So we need to initialize that transcoder once
             if (extension == "KHR_texture_basisu")
             {
-                logger::info("Model uses KHR_texture_basisu, initializing basisu transcoder");
+                logger::debug("Model uses KHR_texture_basisu, initializing basisu transcoder");
                 basist::basisu_transcoder_init();
             }
         }
@@ -1762,10 +1762,16 @@ namespace renderer::backend
             }
         }
 
+        primitiveData.reserve(linearNodes.size());
+        drawIndirectCommands.reserve(linearNodes.size());
+
         for (Node* node : nodes)
         {
             preparePrimitiveIndirectData(node);
         }
+
+        primitiveData.shrink_to_fit();
+        drawIndirectCommands.shrink_to_fit();
 
         // TODO(aether) this is getting trivial
         GPUBuffer stagingIndirectBuffer(

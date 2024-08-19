@@ -214,7 +214,7 @@ namespace renderer::backend
             }
         }
 
-        logger::info("Sample count set to {}", std::to_underlying(m_sampleCount));
+        logger::debug("Sample count set to {}", std::to_underlying(m_sampleCount));
 
         std::string_view deviceType;
 

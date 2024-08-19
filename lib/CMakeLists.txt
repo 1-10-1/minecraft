@@ -61,3 +61,9 @@ set(SPIRV_CROSS_CLI OFF)
 set(SPIRV_CROSS_ENABLE_TESTS OFF)
 add_subdirectory(spirvcross)
 
+
+set(TF_BUILD_PROFILER OFF)
+set(TF_BUILD_TESTS OFF)
+set(TF_BUILD_EXAMPLES ON)
+add_subdirectory(taskflow)
+

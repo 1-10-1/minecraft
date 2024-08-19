@@ -146,7 +146,7 @@ namespace renderer::backend
                              std::chrono::high_resolution_clock::now() - timerStart)
                              .count();
 
-        logger::info("Shader compilation took {:.2f}s", timeTaken);
+        logger::debug("Shader compilation took {:.2f}s", timeTaken);
 
         initDescriptors();
 
@@ -234,8 +234,6 @@ namespace renderer::backend
         auto glTFFile =
             std::filesystem::path(std::format("../../gltfSampleAssets/Models/{0}/glTF/{0}.gltf", "Sponza"));
 
-        logger::info("Loading scene from {}..", glTFFile.c_str());
-
         m_animationIndex = 0;
         m_animationTimer = 0.0f;
 
@@ -247,7 +245,7 @@ namespace renderer::backend
                              std::chrono::high_resolution_clock::now() - timerStart)
                              .count();
 
-        logger::info("Took {:.2f}s", timeTaken);
+        logger::debug("{} took {:.2f}s to load", glTFFile.string(), timeTaken);
 
         // Check and list unsupported extensions
         std::stringstream unsupportedExts;

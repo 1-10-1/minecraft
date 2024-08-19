@@ -325,11 +325,17 @@ namespace renderer::backend
 
             if (cacheHeader->deviceID == deviceProperties.deviceID &&
                 cacheHeader->vendorID == deviceProperties.vendorID &&
-                memcmp(cacheHeader->pipelineCacheUUID, deviceProperties.pipelineCacheUUID, vk::UuidSize) == 0)
+                std::memcmp(
+                    cacheHeader->pipelineCacheUUID, deviceProperties.pipelineCacheUUID, vk::UuidSize) == 0)
             {
                 cacheCreateInfo.setPInitialData(cacheBlob.data()).setInitialDataSize(cacheBlob.size());
 
                 newCache = false;
+            }
+            else
+            {
+                logger::debug("Found a cache file for pipeline {}, but rebuilding due to header mismatch",
+                              name);
             }
         }
 
@@ -345,8 +351,8 @@ namespace renderer::backend
             std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - timerStart)
                 .count();
 
-        logger::info(
-            "Pipeline {} took {:.2f}ms to create {} a cache", name, timeTaken, newCache ? "without" : "with");
+        logger::debug(
+            "Took {:.2f}ms to create pipeline {} {} a cache", timeTaken, name, newCache ? "without" : "with");
 
         if (newCache)
         {
@@ -360,6 +366,9 @@ namespace renderer::backend
 
             stream.close();
         }
+
+        // TODO(aether) improve pipeline caching using methods mentioned here
+        // https://zeux.io/2019/07/17/serializing-pipeline-cache/
     };
 
     ComputePipeline::ComputePipeline(Device const& device,

@@ -30,7 +30,16 @@ auto main() -> int
     EventManager eventManager {};
     window::Window window { eventManager };
     Camera camera;
-    renderer::Renderer m_renderer { eventManager, window, camera };
+
+    auto timerStart = std::chrono::high_resolution_clock::now();
+
+    renderer::Renderer renderer { eventManager, window, camera };
+
+    double timeTaken = std::chrono::duration<double, std::ratio<1, 1>>(
+                           std::chrono::high_resolution_clock::now() - timerStart)
+                           .count();
+
+    logger::debug("Renderer took {:.2f}s to initialize", timeTaken);
 
     game::Game game { eventManager, window, camera };
 

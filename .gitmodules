@@ -65,3 +65,6 @@
 [submodule "lib/spirvtools"]
 	path = lib/spirvtools
 	url = https://github.com/KhronosGroup/SPIRV-Tools/
+[submodule "lib/taskflow"]
+	path = lib/taskflow
+	url = https://github.com/taskflow/taskflow

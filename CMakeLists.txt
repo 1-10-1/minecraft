@@ -86,6 +86,7 @@ list(APPEND LIBS
     glslang
     shaderc_combined
     spirv-cross-cpp
+    Taskflow
 )
 
 if (MSVC)

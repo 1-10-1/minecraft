@@ -363,7 +363,7 @@ namespace renderer::backend
 
         glm::mat4 aabb;
 
-        uint64_t triangleCount;
+        uint64_t triangleCount { 0 };
 
         // make nodes a vector of unique ptrs maybe?
         std::vector<Node*> nodes;

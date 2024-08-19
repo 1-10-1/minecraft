@@ -327,8 +327,8 @@ namespace renderer::backend
                                m_surface.getVsync() ? "on" : "off");
 
             std::string humanReadableTriCount = utils::largeNumToHumanReadable(m_scene.triangleCount);
-            ImGui::Text("%s triangles", humanReadableTriCount.data());
-            ImGui::Text("%i draws", m_scene.drawIndirectCommands.size());
+            ImGui::Text("%s triangles %lu", humanReadableTriCount.data(), m_scene.triangleCount);
+            ImGui::Text("%lu draws", m_scene.drawIndirectCommands.size());
 
             ImGui::End();
         }
