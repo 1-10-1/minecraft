@@ -76,28 +76,28 @@ namespace renderer::backend
                 return *this;
             }
 
-            m_graphicsCommandPool    = std::exchange(other.m_graphicsCommandPool, nullptr);
-            m_transferCommandPool    = std::exchange(other.m_transferCommandPool, nullptr);
-            m_graphicsCommandBuffers = std::exchange(other.m_graphicsCommandBuffers, {});
+            m_mainCommandPool     = std::exchange(other.m_mainCommandPool, nullptr);
+            m_transferCommandPool = std::exchange(other.m_transferCommandPool, nullptr);
+            m_mainCommandBuffers  = std::exchange(other.m_mainCommandBuffers, {});
 
             return *this;
         };
 
         CommandManager(CommandManager&& other) noexcept
-            : m_graphicsCommandPool { std::exchange(other.m_graphicsCommandPool, nullptr) },
+            : m_mainCommandPool { std::exchange(other.m_mainCommandPool, nullptr) },
               m_transferCommandPool { std::exchange(other.m_transferCommandPool, nullptr) },
-              m_graphicsCommandBuffers { std::exchange(other.m_graphicsCommandBuffers, {}) }
+              m_mainCommandBuffers { std::exchange(other.m_mainCommandBuffers, {}) }
         {
         }
 
-        [[nodiscard]] auto getGraphicsCmdBuffer(size_t index) const -> vk::raii::CommandBuffer const&
+        [[nodiscard]] auto getMainCmdBuffer(size_t index) const -> vk::raii::CommandBuffer const&
         {
-            return m_graphicsCommandBuffers[index];
+            return m_mainCommandBuffers[index];
         }
 
-        [[nodiscard]] auto getGraphicsCmdPool() const -> vk::raii::CommandPool const&
+        [[nodiscard]] auto getMainCmdPool() const -> vk::raii::CommandPool const&
         {
-            return m_graphicsCommandPool;
+            return m_mainCommandPool;
         }
 
         [[nodiscard]] auto getTransferCmdPool() const -> vk::raii::CommandPool const&
@@ -106,9 +106,9 @@ namespace renderer::backend
         }
 
     private:
-        vk::raii::CommandPool m_graphicsCommandPool { nullptr };
+        vk::raii::CommandPool m_mainCommandPool { nullptr };
         vk::raii::CommandPool m_transferCommandPool { nullptr };
 
-        std::vector<vk::raii::CommandBuffer> m_graphicsCommandBuffers {};
+        std::vector<vk::raii::CommandBuffer> m_mainCommandBuffers {};
     };
 }  // namespace renderer::backend

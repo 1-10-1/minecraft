@@ -12,6 +12,7 @@
 
 namespace renderer::backend
 {
+    // FIXME(aether) This name is misleading, GPUBuffer can be a cpu-only staging buffer
     class GPUBuffer
     {
     public:

@@ -20,6 +20,7 @@
 #include <filesystem>
 #include <print>
 
+#include <TaskScheduler.h>
 #include <glm/ext.hpp>
 #include <glslang/Public/ShaderLang.h>
 #include <imgui_impl_glfw.h>
@@ -28,6 +29,7 @@
 #include <tracy/TracyVulkan.hpp>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_structs.hpp>
 
 namespace
@@ -84,6 +86,10 @@ namespace renderer::backend
                          vk::ImageAspectFlagBits::eDepth }
     // clang_format on
     {
+        enki::TaskScheduler task_scheduler;
+
+        task_scheduler.Initialize({ .numTaskThreadsToCreate = 4 });
+
         glslang::InitializeProcess();
 
         initImgui(window.getHandle());
@@ -347,8 +353,8 @@ namespace renderer::backend
             .Instance                    = *m_instance.get(),
             .PhysicalDevice              = *m_device.getPhysical(),
             .Device                      = *m_device.get(),
-            .QueueFamily                 = m_device.getQueueFamilyIndices().graphicsFamily,
-            .Queue                       = *m_device.getGraphicsQueue(),
+            .QueueFamily                 = m_device.getQueueFamilyIndices().mainFamily,
+            .Queue                       = *m_device.getMainQueue(),
             .DescriptorPool              = *m_imGuiPool,
             .MinImageCount               = kNumFramesInFlight,
             .ImageCount                  = utils::size(m_swapchain.getImageViews()),
@@ -447,4 +453,204 @@ namespace renderer::backend
             .screenHeight      = static_cast<float>(m_drawImage.getDimensions().height),
         };
     }
+
+    AsynchronousLoader::AsynchronousLoader(enki::TaskScheduler* taskScheduler,
+                                           Device& device,
+                                           Allocator& allocator)
+        : task_scheduler { taskScheduler }
+    {
+        fileLoadRequests.reserve(16);
+        uploadRequests.reserve(16);
+
+        stagingBuffer = GPUBuffer(device,
+                                  allocator,
+                                  "Async loader staging buffer",
+                                  64 * 1024 * 1024,
+                                  vk::BufferUsageFlagBits::eTransferSrc,
+                                  VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                  VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                                      VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+        for (uint32_t i : vi::iota(0u, kNumFramesInFlight))
+        {
+            commandPools[i] = device->createCommandPool(
+                                  vk::CommandPoolCreateInfo()
+                                      .setQueueFamilyIndex(device.getQueueFamilyIndices().transferFamily)
+                                      .setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer)) >>
+                              ResultChecker();
+
+            commandBuffers[i] =
+                std::move((device->allocateCommandBuffers(vk::CommandBufferAllocateInfo()
+                                                              .setLevel(vk::CommandBufferLevel::ePrimary)
+                                                              .setCommandBufferCount(1)
+                                                              .setCommandPool(commandPools[i])) >>
+                           ResultChecker())[0]);
+        }
+
+        transferCompleteSemaphore = device->createSemaphore(vk::SemaphoreCreateInfo()) >> ResultChecker();
+
+        transferFence =
+            device->createFence(vk::FenceCreateInfo().setFlags(vk::FenceCreateFlagBits::eSignaled)) >>
+            ResultChecker();
+    }
+
+    // void AsynchronousLoader::update()
+    // {
+    //     // If a texture was processed in the previous commands, signal the renderer
+    //     if (textureReady != nullptr)
+    //     {
+    //         // Add update request.
+    //         // This method is multithreaded_safe
+    //
+    //         // Where? i think i get what this class does
+    //         // below conditional branches will check what type of updates need to be made, and make them
+    //         // this method basically just gets repeatedly called from the async loader thread
+    //
+    //         // i think this works due to the pinned thread
+    //         // here's my hypothesis, but do go and check if its true or not
+    //         // the async loader thread is a pinned task, which I'm guessing means that any calls
+    //         // to AsyncLoader::updateThisOrCopyThatOrWhatever() will immediately pause the calling thread
+    //         // because the scheduler hops to the async thread right away
+    //
+    //         // TODO(aether) what to do here :(
+    //         renderer->add_texture_to_update(texture_ready);
+    //     }
+    //
+    //     if (cpu_buffer_ready.index != k_invalid_buffer.index &&
+    //         gpu_buffer_ready.index != k_invalid_buffer.index)
+    //     {
+    //         RASSERT(completed != nullptr);
+    //         (*completed)++;
+    //
+    //         // TODO(marco): free cpu buffer
+    //
+    //         gpu_buffer_ready.index = k_invalid_buffer.index;
+    //         cpu_buffer_ready.index = k_invalid_buffer.index;
+    //         completed              = nullptr;
+    //     }
+    //
+    //     texture_ready.index = k_invalid_texture.index;
+    //
+    //     // Process upload requests
+    //     if (upload_requests.size)
+    //     {
+    //         ZoneScoped;
+    //
+    //         // Wait for transfer fence to be finished
+    //         if (vkGetFenceStatus(renderer->gpu->vulkan_device, transfer_fence) != VK_SUCCESS)
+    //         {
+    //             return;
+    //         }
+    //         // Reset if file requests are present.
+    //         vkResetFences(renderer->gpu->vulkan_device, 1, &transfer_fence);
+    //
+    //         // Get last request
+    //         UploadRequest request = upload_requests.back();
+    //         upload_requests.pop();
+    //
+    //         CommandBuffer* cb = &command_buffers[renderer->gpu->current_frame];
+    //         cb->begin();
+    //
+    //         if (request.texture.index != k_invalid_texture.index)
+    //         {
+    //             Texture* texture              = renderer->gpu->access_texture(request.texture);
+    //             u32 const k_texture_channels  = 4;
+    //             u32 const k_texture_alignment = 4;
+    //             sizet const aligned_image_size =
+    //                 memory_align(texture->width * texture->height * k_texture_channels, k_texture_alignment);
+    //             // Request place in buffer
+    //             sizet const current_offset =
+    //                 std::atomic_fetch_add(&staging_buffer_offset, aligned_image_size);
+    //
+    //             cb->upload_texture_data(
+    //                 texture->handle, request.data, staging_buffer->handle, current_offset);
+    //
+    //             free(request.data);
+    //         }
+    //         else if (request.cpu_buffer.index != k_invalid_buffer.index &&
+    //                  request.gpu_buffer.index != k_invalid_buffer.index)
+    //         {
+    //             Buffer* src = renderer->gpu->access_buffer(request.cpu_buffer);
+    //             Buffer* dst = renderer->gpu->access_buffer(request.gpu_buffer);
+    //
+    //             cb->upload_buffer_data(src->handle, dst->handle);
+    //         }
+    //         else if (request.cpu_buffer.index != k_invalid_buffer.index)
+    //         {
+    //             Buffer* buffer = renderer->gpu->access_buffer(request.cpu_buffer);
+    //             // TODO: proper alignment
+    //             sizet const aligned_image_size = memory_align(buffer->size, 64);
+    //             sizet const current_offset =
+    //                 std::atomic_fetch_add(&staging_buffer_offset, aligned_image_size);
+    //             cb->upload_buffer_data(buffer->handle, request.data, staging_buffer->handle, current_offset);
+    //
+    //             free(request.data);
+    //         }
+    //
+    //         cb->end();
+    //
+    //         VkSubmitInfo submitInfo       = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+    //         submitInfo.commandBufferCount = 1;
+    //         submitInfo.pCommandBuffers    = &cb->vk_command_buffer;
+    //         VkPipelineStageFlags wait_flag[] { VK_PIPELINE_STAGE_TRANSFER_BIT };
+    //         VkSemaphore wait_semaphore[] { transfer_complete_semaphore };
+    //         submitInfo.pWaitSemaphores   = wait_semaphore;
+    //         submitInfo.pWaitDstStageMask = wait_flag;
+    //
+    //         VkQueue used_queue = renderer->gpu->vulkan_transfer_queue;
+    //         vkQueueSubmit(used_queue, 1, &submitInfo, transfer_fence);
+    //
+    //         // TODO(marco): better management for state machine. We need to account for file -> buffer,
+    //         // buffer -> texture and buffer -> buffer. One the CPU buffer has been used it should be freed.
+    //         if (request.texture.index != k_invalid_index)
+    //         {
+    //             RASSERT(texture_ready.index == k_invalid_texture.index);
+    //             texture_ready = request.texture;
+    //         }
+    //         else if (request.cpu_buffer.index != k_invalid_buffer.index &&
+    //                  request.gpu_buffer.index != k_invalid_buffer.index)
+    //         {
+    //             RASSERT(cpu_buffer_ready.index == k_invalid_index);
+    //             RASSERT(gpu_buffer_ready.index == k_invalid_index);
+    //             RASSERT(completed == nullptr);
+    //             cpu_buffer_ready = request.cpu_buffer;
+    //             gpu_buffer_ready = request.gpu_buffer;
+    //             completed        = request.completed;
+    //         }
+    //         else if (request.cpu_buffer.index != k_invalid_index)
+    //         {
+    //             RASSERT(cpu_buffer_ready.index == k_invalid_index);
+    //             cpu_buffer_ready = request.cpu_buffer;
+    //         }
+    //     }
+    //
+    //     // Process a file request
+    //     if (file_load_requests.size)
+    //     {
+    //         FileLoadRequest load_request = file_load_requests.back();
+    //         file_load_requests.pop();
+    //
+    //         i64 start_reading_file = time_now();
+    //         // Process request
+    //         int x, y, comp;
+    //         u8* texture_data = stbi_load(load_request.path, &x, &y, &comp, 4);
+    //
+    //         if (texture_data)
+    //         {
+    //             rprint(
+    //                 "File %s read in %f ms\n", load_request.path, time_from_milliseconds(start_reading_file));
+    //
+    //             UploadRequest& upload_request = upload_requests.push_use();
+    //             upload_request.data           = texture_data;
+    //             upload_request.texture        = load_request.texture;
+    //             upload_request.cpu_buffer     = k_invalid_buffer;
+    //         }
+    //         else
+    //         {
+    //             rprint("Error reading file %s\n", load_request.path);
+    //         }
+    //     }
+    //
+    //     staging_buffer_offset = 0;
+    // };
 }  // namespace renderer::backend

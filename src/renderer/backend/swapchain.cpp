@@ -27,10 +27,10 @@ namespace renderer::backend
 
         QueueFamilyIndices const& queueFamilyIndices = m_device->getQueueFamilyIndices();
 
-        std::array queueFamilyIndicesArray { queueFamilyIndices.graphicsFamily,
+        std::array queueFamilyIndicesArray { queueFamilyIndices.mainFamily,
                                              queueFamilyIndices.presentFamily };
 
-        bool sameQueueFamily = queueFamilyIndices.graphicsFamily == queueFamilyIndices.presentFamily;
+        bool sameQueueFamily = queueFamilyIndices.mainFamily == queueFamilyIndices.presentFamily;
 
         vk::SwapchainCreateInfoKHR createInfo {
             .surface          = surface,

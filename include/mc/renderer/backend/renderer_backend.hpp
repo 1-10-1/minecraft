@@ -6,20 +6,20 @@
 #include "constants.hpp"
 #include "descriptor.hpp"
 #include "device.hpp"
+#include "gltfloader.hpp"
 #include "image.hpp"
 #include "instance.hpp"
-#include "mc/renderer/backend/gltfloader.hpp"
 #include "pipeline.hpp"
 #include "surface.hpp"
 #include "swapchain.hpp"
 
-#include "vk_mem_alloc.h"
 #include <GLFW/glfw3.h>
+#include <TaskScheduler.h>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <glm/mat4x4.hpp>
 #include <tracy/TracyVulkan.hpp>
-#include <vulkan/vulkan.h>
+#include <vk_mem_alloc.h>
 #include <vulkan/vulkan_core.h>
 
 namespace renderer::backend
@@ -62,6 +62,93 @@ namespace renderer::backend
 #endif
     };
 
+    // FIXME(aether) ASAP
+    // Implement handles so you dont go around passing pointers to vulkan images around
+    // the entire codebase
+    struct FileLoadRequest
+    {
+        std::string path;
+
+        Image* texture;
+        GPUBuffer* buffer;
+    };
+
+    struct UploadRequest
+    {
+        void* data          = nullptr;
+        uint32_t* completed = nullptr;
+
+        Image* texture       = nullptr;
+        GPUBuffer* cpuBuffer = nullptr;
+        GPUBuffer* gpuBuffer = nullptr;
+    };
+
+    struct AsynchronousLoader
+    {
+        AsynchronousLoader()  = default;
+        ~AsynchronousLoader() = default;
+
+        AsynchronousLoader(enki::TaskScheduler* taskScheduler, Device& device, Allocator& allocator);
+
+        void update();
+
+        void requestTextureData(std::string_view filename, Image& texture);
+        void requestBufferUpload(void* data, GPUBuffer& buffer);
+        void requestBufferCopy(GPUBuffer& src, GPUBuffer& dst, uint32_t* completed);
+
+        enki::TaskScheduler* task_scheduler = nullptr;
+        Device* device                      = nullptr;
+
+        std::vector<FileLoadRequest> fileLoadRequests;
+        std::vector<UploadRequest> uploadRequests;
+
+        GPUBuffer stagingBuffer {};
+
+        uint32_t* completed                    = nullptr;
+        Image* textureReady                    = nullptr;
+        Image* cpuBufferReady                  = nullptr;
+        Image* gpuBufferReady                  = nullptr;
+        std::atomic_size_t stagingBufferOffset = 0;
+
+        // TODO(aether) come up with a method to initialise arrays containing class objects
+        // that have a deleted default constructor
+        // might as well have hardcoded "2" as the 2nd template parameter here
+        std::array<vk::raii::CommandBuffer, kNumFramesInFlight> commandBuffers { nullptr, nullptr };
+        std::array<vk::raii::CommandPool, kNumFramesInFlight> commandPools { nullptr, nullptr };
+        vk::raii::Semaphore transferCompleteSemaphore { nullptr };
+        vk::raii::Fence transferFence { nullptr };
+    };
+
+    struct RunPinnedTaskLoopTask : enki::IPinnedTask
+    {
+        void Execute() override
+        {
+            while (task_scheduler->GetIsRunning() && execute)
+            {
+                task_scheduler->WaitForNewPinnedTasks();
+                task_scheduler->RunPinnedTasks();
+            }
+        }
+
+        enki::TaskScheduler* task_scheduler;
+        bool execute = true;
+    };
+
+    struct AsynchronousLoadTask : enki::IPinnedTask
+    {
+        void Execute() override
+        {
+            while (execute)
+            {
+                async_loader->update();
+            }
+        }
+
+        AsynchronousLoader* async_loader;
+        enki::TaskScheduler* task_scheduler;
+        bool execute = true;
+    };
+
     class RendererBackend
     {
     public:
@@ -76,7 +163,8 @@ namespace renderer::backend
 
         void render();
         void update(glm::vec3 cameraPos, glm::mat4 view, glm::mat4 projection);
-        void recordCommandBuffer(uint32_t imageIndex);
+
+        void queueTextureUpdate(Image* texture);
 
         void scheduleSwapchainUpdate();
 
@@ -95,6 +183,7 @@ namespace renderer::backend
     private:
         void initImgui(GLFWwindow* window);
         void renderImgui(vk::CommandBuffer cmdBuf, vk::ImageView targetImage);
+        void recordCommandBuffer(uint32_t imageIndex);
 
         void drawGeometry(vk::CommandBuffer cmdBuf);
 
@@ -107,6 +196,8 @@ namespace renderer::backend
 
         void loadGltfScene();
         void renderNode(vk::CommandBuffer cmdBuf, Node* node);
+
+        enki::TaskScheduler m_scheduler;
 
         Instance m_instance;
         Surface m_surface;
@@ -143,14 +234,15 @@ namespace renderer::backend
             uint64_t drawCount;
         } m_stats {};
 
+        uint32_t m_currentFrame  = 0;
         int32_t m_animationIndex = 0;
-        float m_animationTimer   = 0.0f;
-        bool m_animate           = true;
-
-        uint32_t m_currentFrame { 0 };
 
         uint64_t m_frameCount {};
 
-        bool m_windowResized { false };
+        float m_animationTimer = 0.0f;
+
+        bool m_animate = true;
+
+        bool m_windowResized = false;
     };
 }  // namespace renderer::backend

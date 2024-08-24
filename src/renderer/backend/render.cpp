@@ -53,7 +53,7 @@ namespace renderer::backend
             }
         }
 
-        vk::CommandBuffer cmdBuf = m_commandManager.getGraphicsCmdBuffer(m_currentFrame);
+        vk::CommandBuffer cmdBuf = m_commandManager.getMainCmdBuffer(m_currentFrame);
 
         cmdBuf.reset();
 
@@ -78,7 +78,7 @@ namespace renderer::backend
 
         {
             ZoneNamedN(tracy_queue_submit_zone, "Queue Submit", true);
-            m_device.getGraphicsQueue().submit2(submit, frame.inFlightFence);
+            m_device.getMainQueue().submit2(submit, frame.inFlightFence);
         }
 
         auto presentInfo = vk::PresentInfoKHR()
@@ -202,7 +202,7 @@ namespace renderer::backend
         TracyVkCtx tracyCtx = m_frameResources[m_currentFrame].tracyContext;
 #endif
 
-        vk::CommandBuffer cmdBuf = m_commandManager.getGraphicsCmdBuffer(m_currentFrame);
+        vk::CommandBuffer cmdBuf = m_commandManager.getMainCmdBuffer(m_currentFrame);
 
         auto beginInfo =
             vk::CommandBufferBeginInfo().setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);

@@ -383,8 +383,7 @@ namespace renderer::backend
                                mipLevels,
                                std::format("Uncompressed gltf texture ({})", gltfimage.uri));
 
-            ScopedCommandBuffer cmdBuf(
-                device, cmdManager.getTransferCmdPool(), device.getTransferQueue(), true);
+            ScopedCommandBuffer cmdBuf(device, cmdManager.getMainCmdPool(), device.getMainQueue(), true);
 
             vk::ImageSubresourceRange subresourceRange = {
                 .aspectMask = vk::ImageAspectFlagBits::eColor,

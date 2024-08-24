@@ -13,26 +13,15 @@ set(GLFW_BUILD_EXAMPLES OFF)
 set(GLFW_BUILD_TESTS OFF)
 add_subdirectory(glfw)
 
-# Tiny OBJ Loader
-add_subdirectory(tinyobjloader)
-
 # Magic Enum
 add_subdirectory(magic_enum)
 
 # Tracy
-if (PROFILED_BUILD)
-add_subdirectory(tracy)
-else()
-set(TRACY_ENABLE OFF)
-add_subdirectory(tracy)
+if (NOT PROFILED_BUILD)
+	set(TRACY_ENABLE OFF)
 endif()
 
-# Assimp
-if (MSVC)
-	set(ASSIMP_BUILD_TESTS OFF)
-	set(ASSIMP_WARNINGS_AS_ERRORS OFF)
-	add_subdirectory(assimp)
-endif()
+add_subdirectory(tracy)
 
 # STB
 add_subdirectory(stb)
@@ -56,14 +45,17 @@ add_subdirectory(basisu)
 # add_subdirectory(spirvtools)
 
 # SPIRV Cross
-set(SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS ON)
-set(SPIRV_CROSS_CLI OFF)
-set(SPIRV_CROSS_ENABLE_TESTS OFF)
-add_subdirectory(spirvcross)
+# set(SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS ON)
+# set(SPIRV_CROSS_CLI OFF)
+# set(SPIRV_CROSS_ENABLE_TESTS OFF)
+# add_subdirectory(spirvcross)
 
+# set(TF_BUILD_PROFILER OFF)
+# set(TF_BUILD_TESTS OFF)
+# set(TF_BUILD_EXAMPLES OFF)
+# add_subdirectory(taskflow)
 
-set(TF_BUILD_PROFILER OFF)
-set(TF_BUILD_TESTS OFF)
-set(TF_BUILD_EXAMPLES ON)
-add_subdirectory(taskflow)
+option(ENKITS_BUILD_C_INTERFACE OFF)
+option(ENKITS_BUILD_EXAMPLES OFF )
+add_subdirectory(enkits)
 

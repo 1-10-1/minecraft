@@ -81,11 +81,11 @@ namespace renderer::backend
 
     CommandManager::CommandManager(Device const& device)
     {
-        m_graphicsCommandPool =
+        m_mainCommandPool =
             device
                 ->createCommandPool(vk::CommandPoolCreateInfo()
                                         .setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer)
-                                        .setQueueFamilyIndex(device.getQueueFamilyIndices().graphicsFamily))
+                                        .setQueueFamilyIndex(device.getQueueFamilyIndices().mainFamily))
                 .value();
 
         m_transferCommandPool =
@@ -96,12 +96,11 @@ namespace renderer::backend
                                         .setQueueFamilyIndex(device.getQueueFamilyIndices().transferFamily))
                 .value();
 
-        m_graphicsCommandBuffers =
-            device
-                ->allocateCommandBuffers(vk::CommandBufferAllocateInfo()
-                                             .setCommandPool(m_graphicsCommandPool)
-                                             .setLevel(vk::CommandBufferLevel::ePrimary)
-                                             .setCommandBufferCount(kNumFramesInFlight))
-                .value();
+        m_mainCommandBuffers = device
+                                   ->allocateCommandBuffers(vk::CommandBufferAllocateInfo()
+                                                                .setCommandPool(m_mainCommandPool)
+                                                                .setLevel(vk::CommandBufferLevel::ePrimary)
+                                                                .setCommandBufferCount(kNumFramesInFlight))
+                                   .value();
     }
 }  // namespace renderer::backend

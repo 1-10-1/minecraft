@@ -99,15 +99,15 @@ namespace renderer::backend
 
     void BasicImage::destroy()
     {
-        if (!m_handle)
+        if (!m_imageHandle)
         {
             return;
         }
 
         m_imageView.clear();
-        vmaDestroyImage(*m_allocator, m_handle, m_allocation);
+        vmaDestroyImage(*m_allocator, m_imageHandle, m_allocation);
 
-        m_handle = nullptr;
+        m_imageHandle = nullptr;
     }
 
     void
@@ -138,7 +138,7 @@ namespace renderer::backend
         blitInfo.dstImage       = dst;
         blitInfo.dstImageLayout = vk::ImageLayout::eTransferDstOptimal;
 
-        blitInfo.srcImage       = m_handle;
+        blitInfo.srcImage       = m_imageHandle;
         blitInfo.srcImageLayout = vk::ImageLayout::eTransferSrcOptimal;
 
         blitInfo.filter      = vk::Filter::eLinear;
@@ -210,7 +210,7 @@ namespace renderer::backend
         vmaCreateImage(*m_allocator,
                        &static_cast<VkImageCreateInfo&>(imageInfo),
                        &imageAllocInfo,
-                       &m_handle,
+                       &m_imageHandle,
                        &m_allocation,
                        nullptr);
     }
@@ -218,7 +218,7 @@ namespace renderer::backend
     void BasicImage::createImageView(vk::Format format, vk::ImageAspectFlags aspectFlags, uint32_t mipLevels)
     {
         vk::ImageViewCreateInfo viewInfo {
-            .image              = m_handle,
+            .image              = m_imageHandle,
             .viewType           = vk::ImageViewType::e2D,
             .format             = format,
             .subresourceRange   = {
@@ -267,7 +267,7 @@ namespace renderer::backend
 
         {
             ScopedCommandBuffer commandBuffer(
-                *m_device, m_commandManager->getGraphicsCmdPool(), m_device->getGraphicsQueue());
+                *m_device, m_commandManager->getMainCmdPool(), m_device->getMainQueue());
 
             BasicImage::transition(
                 commandBuffer, m_image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
@@ -363,7 +363,7 @@ namespace renderer::backend
         {
             // TODO(aether) graphics or transfer?
             ScopedCommandBuffer commandBuffer(
-                *m_device, m_commandManager->getGraphicsCmdPool(), m_device->getGraphicsQueue());
+                *m_device, m_commandManager->getMainCmdPool(), m_device->getMainQueue());
 
             BasicImage::transition(
                 commandBuffer, m_image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);

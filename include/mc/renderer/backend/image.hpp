@@ -4,7 +4,8 @@
 #include "command.hpp"
 #include "device.hpp"
 #include "mc/asserts.hpp"
-#include "mc/renderer/backend/vk_checker.hpp"
+#include "resource.hpp"
+#include "vk_checker.hpp"
 
 #include <string>
 #include <string_view>
@@ -70,21 +71,31 @@ namespace renderer::backend
         unsigned char* m_data { nullptr };
     };
 
-    class BasicImage
+    struct ImageCreation
     {
+        Device const& device;
+        Allocator const& allocator;
+
+        vk::Extent2D dimensions;
+        vk::Format format;
+        vk::SampleCountFlagBits sampleCount;
+        vk::ImageUsageFlags usageFlags;
+        vk::ImageAspectFlags aspectFlags;
+
+        uint32_t mipLevels    = 1;
+        std::string_view name = {};
+    };
+
+    class BasicImage : public ResourceBase
+    {
+        // What if I put this in ResourceBase with a template
+        friend class ResourceManager<BasicImage, ImageCreation>;
+
+        BasicImage() = delete;
+
+        BasicImage(uint32_t index, uint64_t creationNumber, ImageCreation creation);
+
     public:
-        BasicImage() = default;
-
-        BasicImage(Device const& device,
-                   Allocator const& allocator,
-                   vk::Extent2D dimensions,
-                   vk::Format format,
-                   vk::SampleCountFlagBits sampleCount,
-                   vk::ImageUsageFlags usageFlags,
-                   vk::ImageAspectFlags aspectFlags,
-                   uint32_t mipLevels    = 1,
-                   std::string_view name = {});
-
         ~BasicImage();
 
         auto operator=(BasicImage const&) -> BasicImage& = delete;
@@ -93,11 +104,11 @@ namespace renderer::backend
         // TODO(aether) there is something seriously wrong with this and the GPUBuffer class when
         // you try to assign an object to {} (someImage = {})
         // It creates a leak, try it
-        BasicImage(BasicImage&& other) noexcept
+        BasicImage(BasicImage&& other) noexcept : ResourceBase { other.m_handle }
         {
             std::swap(m_device, other.m_device);
             std::swap(m_allocator, other.m_allocator);
-            std::swap(m_handle, other.m_handle);
+            std::swap(m_imageHandle, other.m_imageHandle);
             std::swap(m_allocation, other.m_allocation);
             std::swap(m_format, other.m_format);
             std::swap(m_sampleCount, other.m_sampleCount);
@@ -116,11 +127,12 @@ namespace renderer::backend
                 return *this;
             }
 
-            m_device     = std::exchange(other.m_device, { nullptr });
-            m_allocator  = std::exchange(other.m_allocator, { nullptr });
-            m_handle     = std::exchange(other.m_handle, { nullptr });
-            m_allocation = std::exchange(other.m_allocation, { nullptr });
-
+            m_device      = std::exchange(other.m_device, { nullptr });
+            m_allocator   = std::exchange(other.m_allocator, { nullptr });
+            m_imageHandle = std::exchange(other.m_imageHandle, { nullptr });
+            m_imageView   = std::exchange(other.m_imageView, { nullptr });
+            m_allocation  = std::exchange(other.m_allocation, { nullptr });
+            m_handle      = std::exchange(other.m_handle, {});
             m_format      = std::exchange(other.m_format, {});
             m_sampleCount = std::exchange(other.m_sampleCount, {});
             m_usageFlags  = std::exchange(other.m_usageFlags, {});
@@ -128,20 +140,16 @@ namespace renderer::backend
             m_mipLevels   = std::exchange(other.m_mipLevels, {});
             m_dimensions  = std::exchange(other.m_dimensions, {});
 
-            m_imageView = std::move(other.m_imageView);
-
-            other.m_imageView = nullptr;
-
             return *this;
         };
 
-        [[nodiscard]] operator bool() const { return m_handle; }
+        [[nodiscard]] operator bool() const { return m_imageHandle; }
 
-        [[nodiscard]] bool operator==(std::nullptr_t) const { return !m_handle; }
+        [[nodiscard]] bool operator==(std::nullptr_t) const { return !m_imageHandle; }
 
-        [[nodiscard]] operator vk::Image() const { return m_handle; }
+        [[nodiscard]] operator vk::Image() const { return m_imageHandle; }
 
-        [[nodiscard]] auto get() const -> vk::Image { return m_handle; }
+        [[nodiscard]] auto get() const -> vk::Image { return m_imageHandle; }
 
         [[nodiscard]] auto getName() const -> std::string_view
         {
@@ -166,7 +174,7 @@ namespace renderer::backend
             VkDebugUtilsObjectNameInfoEXT info {
                 .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
                 .objectType   = VK_OBJECT_TYPE_IMAGE,
-                .objectHandle = reinterpret_cast<uint64_t>(m_handle),
+                .objectHandle = reinterpret_cast<uint64_t>(m_imageHandle),
                 .pObjectName  = name.data(),
             };
 
@@ -221,7 +229,7 @@ namespace renderer::backend
         Device const* m_device { nullptr };
         Allocator const* m_allocator { nullptr };
 
-        VkImage m_handle { nullptr };
+        VkImage m_imageHandle { nullptr };
         vk::raii::ImageView m_imageView { nullptr };
         VmaAllocation m_allocation { nullptr };
 

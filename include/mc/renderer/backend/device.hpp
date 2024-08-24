@@ -12,7 +12,7 @@ namespace renderer::backend
 
     struct QueueFamilyIndices
     {
-        uint32_t graphicsFamily = std::numeric_limits<uint32_t>::max();
+        uint32_t mainFamily     = std::numeric_limits<uint32_t>::max();
         uint32_t presentFamily  = std::numeric_limits<uint32_t>::max();
         uint32_t transferFamily = std::numeric_limits<uint32_t>::max();
     };
@@ -52,7 +52,7 @@ namespace renderer::backend
             return m_queueFamilyIndices;
         }
 
-        [[nodiscard]] auto getGraphicsQueue() const -> vk::raii::Queue const& { return m_graphicsQueue; }
+        [[nodiscard]] auto getMainQueue() const -> vk::raii::Queue const& { return m_mainQueue; }
 
         [[nodiscard]] auto getTransferQueue() const -> vk::raii::Queue const& { return m_transferQueue; }
 
@@ -91,7 +91,7 @@ namespace renderer::backend
 
         QueueFamilyIndices m_queueFamilyIndices {};
 
-        vk::raii::Queue m_graphicsQueue { nullptr };
+        vk::raii::Queue m_mainQueue { nullptr };
         vk::raii::Queue m_presentQueue { nullptr };
         vk::raii::Queue m_transferQueue { nullptr };
     };

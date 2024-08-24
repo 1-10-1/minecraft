@@ -85,8 +85,9 @@ list(APPEND LIBS
     SPIRV-Tools-opt
     glslang
     shaderc_combined
-    spirv-cross-cpp
-    Taskflow
+    # spirv-cross-cpp
+    # Taskflow
+    enkiTS
 )
 
 if (MSVC)

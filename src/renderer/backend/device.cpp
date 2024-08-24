@@ -10,6 +10,7 @@
 #include <unordered_set>
 
 #include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
 namespace
@@ -31,7 +32,7 @@ namespace
     {
         auto max = std::numeric_limits<uint32_t>::max();
 
-        return indices.presentFamily != max && indices.graphicsFamily != max && indices.transferFamily != max;
+        return indices.presentFamily != max && indices.mainFamily != max && indices.transferFamily != max;
     };
 
     auto checkDeviceExtensionSupport(vk::PhysicalDevice device) -> bool
@@ -63,16 +64,19 @@ namespace
                 break;
             }
 
-            if (queueFamily.queueFlags & vk::QueueFlagBits::eTransfer &&
-                queueFamily.queueFlags & vk::QueueFlagBits::eGraphics)
-            {
-                logger::debug("Found a dedicated transfer queue!");
-                indices.transferFamily = i;
-            }
+            vk::QueueFlags mainQueueFlags =
+                vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute | vk::QueueFlagBits::eTransfer;
 
-            if (queueFamily.queueFlags & vk::QueueFlagBits::eGraphics)
+            vk::QueueFlags transferQueueFlags = vk::QueueFlagBits::eCompute | vk::QueueFlagBits::eTransfer;
+
+            if ((queueFamily.queueFlags & mainQueueFlags) >= mainQueueFlags)
             {
-                indices.graphicsFamily = i;
+                indices.mainFamily = i;
+            }
+            else if ((queueFamily.queueFlags & transferQueueFlags) >= transferQueueFlags)
+            {
+                indices.transferFamily = i;
+                logger::debug("Found a dedicated transfer queue!");
             }
 
             VkBool32 presentSupport = 0u;
@@ -88,12 +92,12 @@ namespace
 
         uint32_t invalidIndex = std::numeric_limits<uint32_t>::max();
 
-        if (indices.transferFamily == invalidIndex && indices.graphicsFamily != invalidIndex)
+        if (indices.transferFamily == invalidIndex && indices.mainFamily != invalidIndex)
         {
             logger::debug("Could not find a dedicated transfer queue. Using the graphics "
                           "queue for this purpose.");
 
-            indices.transferFamily = indices.graphicsFamily;
+            indices.transferFamily = indices.mainFamily;
         }
 
         return indices;
@@ -243,7 +247,7 @@ namespace renderer::backend
 
     void Device::selectLogicalDevice()
     {
-        std::unordered_set<uint32_t> queueFamilies = { m_queueFamilyIndices.graphicsFamily,
+        std::unordered_set<uint32_t> queueFamilies = { m_queueFamilyIndices.mainFamily,
                                                        m_queueFamilyIndices.presentFamily,
                                                        m_queueFamilyIndices.transferFamily };
 
@@ -297,7 +301,7 @@ namespace renderer::backend
             ResultChecker();
 
         // Already checked that these families exist, no error handling needed here
-        m_graphicsQueue = m_logicalHandle.getQueue(m_queueFamilyIndices.graphicsFamily, 0) >> ResultChecker();
+        m_mainQueue     = m_logicalHandle.getQueue(m_queueFamilyIndices.mainFamily, 0) >> ResultChecker();
         m_presentQueue  = m_logicalHandle.getQueue(m_queueFamilyIndices.presentFamily, 0) >> ResultChecker();
         m_transferQueue = m_logicalHandle.getQueue(m_queueFamilyIndices.transferFamily, 0) >> ResultChecker();
     }
