@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.26.0 FATAL_ERROR)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 project(minecraft LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -38,6 +38,7 @@ list(APPEND SOURCE_FILES
     src/renderer/backend/instance.cpp
     src/renderer/backend/surface.cpp
     src/renderer/backend/image.cpp
+    src/renderer/backend/texture.cpp
     src/renderer/backend/buffer.cpp
     src/renderer/backend/command.cpp
     src/renderer/backend/pipeline.cpp
@@ -109,7 +110,7 @@ target_compile_definitions(
 )
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
-    target_compile_definitions(${PROJECT_NAME} PUBLIC DEBUG=true ASSERTIONS_ENABLED)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC DEBUG=true)
 else()
     target_compile_definitions(${PROJECT_NAME} PUBLIC DEBUG=false)
 endif()
@@ -128,7 +129,7 @@ if (MSVC)
         $<$<CONFIG:Release>:/O3 /EHs-c- /D_HAS_EXCEPTIONS=0>)
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE
-        -std=c++23 -Wall -Wunused -mavx2
+        -std=c++26 -Wall -Wunused -mavx2
         -Wno-format -Wno-switch
         -Wno-deprecated-declarations -march=native -flto=auto
         -Wno-sign-compare -pthread

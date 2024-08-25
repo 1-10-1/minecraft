@@ -9,7 +9,7 @@
 #    define debugBreak() __builtin_trap()
 #endif
 
-#ifdef ASSERTIONS_ENABLED
+#if DEBUG
 #    define MC_ASSERT(expr)                                        \
         {                                                          \
             if (expr)                                              \

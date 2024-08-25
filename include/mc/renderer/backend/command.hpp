@@ -19,27 +19,28 @@ namespace renderer::backend
                             bool oneTimeUse = false);
         ~ScopedCommandBuffer();
 
-        ScopedCommandBuffer(ScopedCommandBuffer const&)                    = delete;
-        auto operator=(ScopedCommandBuffer const&) -> ScopedCommandBuffer& = delete;
-
-        auto operator=(ScopedCommandBuffer&& other) noexcept -> ScopedCommandBuffer&
+        friend void swap(ScopedCommandBuffer& first, ScopedCommandBuffer& second) noexcept
         {
-            if (this == &other)
-            {
-                return *this;
-            }
+            using std::swap;
 
-            m_device = std::exchange(other.m_device, nullptr);
-            m_queue  = std::exchange(other.m_queue, nullptr);
-            m_handle = std::exchange(other.m_handle, nullptr);
+            swap(first.m_device, second.m_device);
+            swap(first.m_handle, second.m_handle);
+            swap(first.m_pool, second.m_pool);
+            swap(first.m_oneTime, second.m_oneTime);
+            swap(first.m_queue, second.m_queue);
+        }
 
-            return *this;
+        ScopedCommandBuffer(ScopedCommandBuffer&& other) noexcept : ScopedCommandBuffer()
+        {
+            swap(*this, other);
         };
 
-        ScopedCommandBuffer(ScopedCommandBuffer&& other) noexcept
-            : m_device { std::exchange(other.m_device, nullptr) },
-              m_queue { std::exchange(other.m_queue, nullptr) },
-              m_handle { std::exchange(other.m_handle, nullptr) } {};
+        ScopedCommandBuffer& operator=(ScopedCommandBuffer other) noexcept
+        {
+            swap(*this, other);
+
+            return *this;
+        }
 
         [[nodiscard]] operator vk::CommandBuffer() const { return m_handle; }
 
@@ -66,28 +67,22 @@ namespace renderer::backend
 
         explicit CommandManager(Device const& device);
 
-        CommandManager(CommandManager const&)                    = delete;
-        auto operator=(CommandManager const&) -> CommandManager& = delete;
-
-        auto operator=(CommandManager&& other) noexcept -> CommandManager&
+        friend void swap(CommandManager& first, CommandManager& second) noexcept
         {
-            if (this == &other)
-            {
-                return *this;
-            }
+            using std::swap;
 
-            m_mainCommandPool     = std::exchange(other.m_mainCommandPool, nullptr);
-            m_transferCommandPool = std::exchange(other.m_transferCommandPool, nullptr);
-            m_mainCommandBuffers  = std::exchange(other.m_mainCommandBuffers, {});
+            swap(first.m_mainCommandPool, second.m_mainCommandPool);
+            swap(first.m_transferCommandPool, second.m_transferCommandPool);
+            swap(first.m_mainCommandBuffers, second.m_mainCommandBuffers);
+        }
+
+        CommandManager(CommandManager&& other) noexcept : CommandManager() { swap(*this, other); };
+
+        CommandManager& operator=(CommandManager other) noexcept
+        {
+            swap(*this, other);
 
             return *this;
-        };
-
-        CommandManager(CommandManager&& other) noexcept
-            : m_mainCommandPool { std::exchange(other.m_mainCommandPool, nullptr) },
-              m_transferCommandPool { std::exchange(other.m_transferCommandPool, nullptr) },
-              m_mainCommandBuffers { std::exchange(other.m_mainCommandBuffers, {}) }
-        {
         }
 
         [[nodiscard]] auto getMainCmdBuffer(size_t index) const -> vk::raii::CommandBuffer const&

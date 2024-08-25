@@ -12,9 +12,9 @@
 #include "pipeline.hpp"
 #include "surface.hpp"
 #include "swapchain.hpp"
+#include "texture.hpp"
 
 #include <GLFW/glfw3.h>
-#include <TaskScheduler.h>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <glm/mat4x4.hpp>
@@ -65,106 +65,107 @@ namespace renderer::backend
     // FIXME(aether) ASAP
     // Implement handles so you dont go around passing pointers to vulkan images around
     // the entire codebase
-    struct FileLoadRequest
-    {
-        std::string path;
+    // struct FileLoadRequest
+    // {
+    //     std::string path;
+    //
+    //     Texture* texture;
+    //     GPUBuffer* buffer;
+    // };
+    //
+    // struct UploadRequest
+    // {
+    //     void* data          = nullptr;
+    //     uint32_t* completed = nullptr;
+    //
+    //     Texture* texture     = nullptr;
+    //     GPUBuffer* cpuBuffer = nullptr;
+    //     GPUBuffer* gpuBuffer = nullptr;
+    // };
 
-        Image* texture;
-        GPUBuffer* buffer;
-    };
-
-    struct UploadRequest
-    {
-        void* data          = nullptr;
-        uint32_t* completed = nullptr;
-
-        Image* texture       = nullptr;
-        GPUBuffer* cpuBuffer = nullptr;
-        GPUBuffer* gpuBuffer = nullptr;
-    };
-
-    struct AsynchronousLoader
-    {
-        AsynchronousLoader()  = default;
-        ~AsynchronousLoader() = default;
-
-        AsynchronousLoader(enki::TaskScheduler* taskScheduler, Device& device, Allocator& allocator);
-
-        void update();
-
-        void requestTextureData(std::string_view filename, Image& texture);
-        void requestBufferUpload(void* data, GPUBuffer& buffer);
-        void requestBufferCopy(GPUBuffer& src, GPUBuffer& dst, uint32_t* completed);
-
-        enki::TaskScheduler* task_scheduler = nullptr;
-        Device* device                      = nullptr;
-
-        std::vector<FileLoadRequest> fileLoadRequests;
-        std::vector<UploadRequest> uploadRequests;
-
-        GPUBuffer stagingBuffer {};
-
-        uint32_t* completed                    = nullptr;
-        Image* textureReady                    = nullptr;
-        Image* cpuBufferReady                  = nullptr;
-        Image* gpuBufferReady                  = nullptr;
-        std::atomic_size_t stagingBufferOffset = 0;
-
-        // TODO(aether) come up with a method to initialise arrays containing class objects
-        // that have a deleted default constructor
-        // might as well have hardcoded "2" as the 2nd template parameter here
-        std::array<vk::raii::CommandBuffer, kNumFramesInFlight> commandBuffers { nullptr, nullptr };
-        std::array<vk::raii::CommandPool, kNumFramesInFlight> commandPools { nullptr, nullptr };
-        vk::raii::Semaphore transferCompleteSemaphore { nullptr };
-        vk::raii::Fence transferFence { nullptr };
-    };
-
-    struct RunPinnedTaskLoopTask : enki::IPinnedTask
-    {
-        void Execute() override
-        {
-            while (task_scheduler->GetIsRunning() && execute)
-            {
-                task_scheduler->WaitForNewPinnedTasks();
-                task_scheduler->RunPinnedTasks();
-            }
-        }
-
-        enki::TaskScheduler* task_scheduler;
-        bool execute = true;
-    };
-
-    struct AsynchronousLoadTask : enki::IPinnedTask
-    {
-        void Execute() override
-        {
-            while (execute)
-            {
-                async_loader->update();
-            }
-        }
-
-        AsynchronousLoader* async_loader;
-        enki::TaskScheduler* task_scheduler;
-        bool execute = true;
-    };
+    // struct AsynchronousLoader
+    // {
+    //     AsynchronousLoader()  = default;
+    //     ~AsynchronousLoader() = default;
+    //
+    //     AsynchronousLoader(enki::TaskScheduler* taskScheduler, Device& device, Allocator& allocator);
+    //
+    //     void update();
+    //
+    //     void requestTextureData(std::string_view filename, Texture& texture);
+    //     void requestBufferUpload(void* data, GPUBuffer& buffer);
+    //     void requestBufferCopy(GPUBuffer& src, GPUBuffer& dst, uint32_t* completed);
+    //
+    //     enki::TaskScheduler* task_scheduler = nullptr;
+    //     Device* device                      = nullptr;
+    //
+    //     std::vector<FileLoadRequest> fileLoadRequests;
+    //     std::vector<UploadRequest> uploadRequests;
+    //
+    //     GPUBuffer stagingBuffer {};
+    //
+    //     uint32_t* completed                    = nullptr;
+    //     Texture* textureReady                  = nullptr;
+    //     Texture* cpuBufferReady                = nullptr;
+    //     Texture* gpuBufferReady                = nullptr;
+    //     std::atomic_size_t stagingBufferOffset = 0;
+    //
+    //     // TODO(aether) come up with a method to initialise arrays containing class objects
+    //     // that have a deleted default constructor
+    //     // might as well have hardcoded "2" as the 2nd template parameter here
+    //     std::array<vk::raii::CommandBuffer, kNumFramesInFlight> commandBuffers { nullptr, nullptr };
+    //     std::array<vk::raii::CommandPool, kNumFramesInFlight> commandPools { nullptr, nullptr };
+    //     vk::raii::Semaphore transferCompleteSemaphore { nullptr };
+    //     vk::raii::Fence transferFence { nullptr };
+    // };
+    //
+    // struct RunPinnedTaskLoopTask : enki::IPinnedTask
+    // {
+    //     void Execute() override
+    //     {
+    //         while (task_scheduler->GetIsRunning() && execute)
+    //         {
+    //             task_scheduler->WaitForNewPinnedTasks();
+    //             task_scheduler->RunPinnedTasks();
+    //         }
+    //     }
+    //
+    //     enki::TaskScheduler* task_scheduler;
+    //     bool execute = true;
+    // };
+    //
+    // struct AsynchronousLoadTask : enki::IPinnedTask
+    // {
+    //     void Execute() override
+    //     {
+    //         while (execute)
+    //         {
+    //             async_loader->update();
+    //         }
+    //     }
+    //
+    //     AsynchronousLoader* async_loader;
+    //     enki::TaskScheduler* task_scheduler;
+    //     bool execute = true;
+    // };
 
     class RendererBackend
     {
     public:
         explicit RendererBackend(window::Window& window);
 
+        RendererBackend(RendererBackend&&)                    = delete;
+        auto operator=(RendererBackend&&) -> RendererBackend& = delete;
+
         RendererBackend(RendererBackend const&)                    = delete;
-        RendererBackend(RendererBackend&&)                         = delete;
         auto operator=(RendererBackend const&) -> RendererBackend& = delete;
-        auto operator=(RendererBackend&&) -> RendererBackend&      = delete;
 
         ~RendererBackend();
 
         void render();
         void update(glm::vec3 cameraPos, glm::mat4 view, glm::mat4 projection);
 
-        void queueTextureUpdate(Image* texture);
+        // void queueTextureUpdate(Texture* texture);
 
         void scheduleSwapchainUpdate();
 
@@ -197,7 +198,7 @@ namespace renderer::backend
         void loadGltfScene();
         void renderNode(vk::CommandBuffer cmdBuf, Node* node);
 
-        enki::TaskScheduler m_scheduler;
+        // enki::TaskScheduler m_scheduler;
 
         Instance m_instance;
         Surface m_surface;
@@ -207,7 +208,12 @@ namespace renderer::backend
         DescriptorAllocator m_descriptorAllocator;
         CommandManager m_commandManager;
 
-        BasicImage m_drawImage, m_drawImageResolve, m_depthImage;
+        ResourceManager<Image> m_images;
+        ResourceManager<Texture> m_textures;
+
+        ResourceHandle m_drawImage;
+        ResourceHandle m_drawImageResolve;
+        ResourceHandle m_depthImage;
         vk::DescriptorSet m_sceneDataDescriptors { nullptr };
         vk::raii::DescriptorSetLayout m_sceneDataDescriptorLayout { nullptr },
             m_textureArrayDescriptorLayout { nullptr };
@@ -224,7 +230,7 @@ namespace renderer::backend
         std::array<FrameResources, kNumFramesInFlight> m_frameResources {};
 
         vk::raii::Sampler m_dummySampler { nullptr };
-        Image m_dummyTexture {};
+        ResourceHandle m_dummyTexture {};
 
         Timer m_timer;
 

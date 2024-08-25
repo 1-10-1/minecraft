@@ -14,18 +14,19 @@ namespace renderer::backend
 
         Allocator(Instance const& instance, Device const& device);
 
-        Allocator(Allocator const&)                    = delete;
-        auto operator=(Allocator const&) -> Allocator& = delete;
-
-        Allocator(Allocator&& other) : m_allocator { other.m_allocator } { other.m_allocator = nullptr; };
-
-        auto operator=(Allocator&& other) -> Allocator&
+        friend void swap(Allocator& first, Allocator& second) noexcept
         {
-            m_allocator       = other.m_allocator;
-            other.m_allocator = nullptr;
+            std::swap(first.m_allocator, second.m_allocator);
+        }
+
+        Allocator(Allocator&& other) noexcept : Allocator() { swap(*this, other); };
+
+        Allocator& operator=(Allocator other) noexcept
+        {
+            swap(*this, other);
 
             return *this;
-        };
+        }
 
         [[nodiscard]] operator VmaAllocator() const { return m_allocator; }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buffer.hpp"
+#include "command.hpp"
 #include "descriptor.hpp"
 #include "image.hpp"
 
@@ -50,6 +51,7 @@ namespace renderer::backend
         GlTFTexture(Device& device,
                     Allocator& allocator,
                     CommandManager& cmdManager,
+                    ResourceManager<Image>& imgManager,
                     tinygltf::Image& gltfimage,
                     std::filesystem::path path,
                     TextureSampler textureSampler);
@@ -60,7 +62,9 @@ namespace renderer::backend
         GlTFTexture(GlTFTexture&&)            = default;
         GlTFTexture& operator=(GlTFTexture&&) = default;
 
-        BasicImage image {};
+        // TODO(aether) currently, this class handles everything from uploading to compressing
+        // differ that to the Texture class instead
+        ResourceHandle texture {};
 
         vk::ImageLayout layout {};
 
@@ -331,12 +335,14 @@ namespace renderer::backend
         Model(Device& device,
               Allocator& allocator,
               CommandManager& cmdManager,
+              ResourceManager<Image>& imageManager,
               vk::DescriptorSetLayout materialDescriptorSetLayout,
               vk::ImageView dummyImage,
               vk::Sampler dummySampler)
-            : device { &device },
-              allocator { &allocator },
-              cmdManager { &cmdManager },
+            : m_device { &device },
+              m_allocator { &allocator },
+              m_cmdManager { &cmdManager },
+              m_imageManager { &imageManager },
               m_materialDescriptorSetLayout { materialDescriptorSetLayout },
               m_dummyImage { dummyImage },
               m_dummySampler { dummySampler }
@@ -448,9 +454,10 @@ namespace renderer::backend
         };
 
     private:
-        Device* device { nullptr };
-        Allocator* allocator { nullptr };
-        CommandManager* cmdManager { nullptr };
+        Device* m_device { nullptr };
+        Allocator* m_allocator { nullptr };
+        CommandManager* m_cmdManager { nullptr };
+        ResourceManager<Image>* m_imageManager { nullptr };
 
         DescriptorAllocator m_materialDescriptorAllocator {};
         vk::DescriptorSetLayout m_materialDescriptorSetLayout { nullptr };

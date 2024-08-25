@@ -108,21 +108,25 @@ namespace renderer::backend
 
     void RendererBackend::drawGeometry(vk::CommandBuffer cmdBuf)
     {
-        vk::Extent2D imageExtent = m_drawImage.getDimensions();
+        auto drawImage        = m_images.access(m_drawImage);
+        auto drawImageResolve = m_images.access(m_drawImageResolve);
+        auto depthImage       = m_images.access(m_depthImage);
+
+        vk::Extent2D imageExtent = drawImage.getDimensions();
 
         auto colorAttachment = vk::RenderingAttachmentInfo()
-                                   .setImageView(m_drawImage.getImageView())
+                                   .setImageView(drawImage.getImageView())
                                    .setImageLayout(vk::ImageLayout::eGeneral)
                                    .setLoadOp(vk::AttachmentLoadOp::eClear)
                                    .setClearValue(vk::ClearValue(vk::ClearColorValue(
                                        std::array { 107.f / 255.f, 102.f / 255.f, 198.f / 255.f, 1.f })))
                                    .setStoreOp(vk::AttachmentStoreOp::eStore)
-                                   .setResolveImageView(m_drawImageResolve.getImageView())
+                                   .setResolveImageView(drawImageResolve.getImageView())
                                    .setResolveImageLayout(vk::ImageLayout::eGeneral)
                                    .setResolveMode(vk::ResolveModeFlagBits::eAverage);
 
         auto depthAttachment = vk::RenderingAttachmentInfo()
-                                   .setImageView(m_depthImage.getImageView())
+                                   .setImageView(depthImage.getImageView())
                                    .setImageLayout(vk::ImageLayout::eDepthAttachmentOptimal)
                                    .setLoadOp(vk::AttachmentLoadOp::eClear)
                                    .setStoreOp(vk::AttachmentStoreOp::eStore)
@@ -209,21 +213,20 @@ namespace renderer::backend
 
         cmdBuf.begin(beginInfo) >> ResultChecker();
 
+        auto drawImage = m_images.access(m_drawImage), drawImageResolve = m_images.access(m_drawImageResolve),
+             depthImage = m_images.access(m_depthImage);
+
         {
             TracyVkZone(tracyCtx, cmdBuf, "Command buffer recording");
 
             vk::Image swapchainImage = m_swapchain.getImages()[imageIndex];
             vk::Extent2D imageExtent = m_swapchain.getImageExtent();
 
-            BasicImage::transition(
-                cmdBuf, m_drawImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
-            BasicImage::transition(
-                cmdBuf, m_depthImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthAttachmentOptimal);
+            Image::transition(
+                cmdBuf, depthImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthAttachmentOptimal);
 
-            BasicImage::transition(cmdBuf,
-                                   m_drawImage,
-                                   vk::ImageLayout::eTransferDstOptimal,
-                                   vk::ImageLayout::eColorAttachmentOptimal);
+            Image::transition(
+                cmdBuf, drawImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
 
             {
                 TracyVkZone(tracyCtx, cmdBuf, "Geometry render");
@@ -234,17 +237,17 @@ namespace renderer::backend
             {
                 TracyVkZone(tracyCtx, cmdBuf, "Draw image copy");
 
-                BasicImage::transition(cmdBuf,
-                                       m_drawImageResolve,
-                                       vk::ImageLayout::eUndefined,
-                                       vk::ImageLayout::eTransferSrcOptimal);
+                Image::transition(cmdBuf,
+                                  drawImageResolve,
+                                  vk::ImageLayout::eUndefined,
+                                  vk::ImageLayout::eTransferSrcOptimal);
 
-                BasicImage::transition(cmdBuf,
-                                       swapchainImage,
-                                       vk::ImageLayout::eUndefined,
-                                       vk::ImageLayout::eTransferDstOptimal);
+                Image::transition(cmdBuf,
+                                  swapchainImage,
+                                  vk::ImageLayout::eUndefined,
+                                  vk::ImageLayout::eTransferDstOptimal);
 
-                m_drawImageResolve.copyTo(cmdBuf, swapchainImage, imageExtent, m_drawImage.getDimensions());
+                drawImageResolve.copyTo(cmdBuf, swapchainImage, imageExtent, drawImage.getDimensions());
             }
 
             {
@@ -253,10 +256,10 @@ namespace renderer::backend
                 renderImgui(cmdBuf, *m_swapchain.getImageViews()[imageIndex]);
             }
 
-            BasicImage::transition(cmdBuf,
-                                   swapchainImage,
-                                   vk::ImageLayout::eTransferDstOptimal,
-                                   vk::ImageLayout::ePresentSrcKHR);
+            Image::transition(cmdBuf,
+                              swapchainImage,
+                              vk::ImageLayout::eTransferDstOptimal,
+                              vk::ImageLayout::ePresentSrcKHR);
         }
 
         TracyVkCollect(tracyCtx, cmdBuf);

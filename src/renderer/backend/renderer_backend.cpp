@@ -20,7 +20,6 @@
 #include <filesystem>
 #include <print>
 
-#include <TaskScheduler.h>
 #include <glm/ext.hpp>
 #include <glslang/Public/ShaderLang.h>
 #include <imgui_impl_glfw.h>
@@ -46,7 +45,6 @@ namespace
 namespace renderer::backend
 {
     RendererBackend::RendererBackend(window::Window& window)
-        // clang_format off
         : m_surface { window, m_instance },
 
           m_device { m_instance, m_surface },
@@ -57,38 +55,41 @@ namespace renderer::backend
 
           m_commandManager { m_device },
 
-          m_drawImage { m_device,
-                        m_allocator,
-                        m_surface.getFramebufferExtent(),
-                        vk::Format::eR16G16B16A16Sfloat,
-                        m_device.getMaxUsableSampleCount(),
-                        vk::ImageUsageFlagBits::eTransferSrc |
-                            vk::ImageUsageFlagBits::eTransferDst |  // maybe remove?
-                            vk::ImageUsageFlagBits::eColorAttachment,
-                        vk::ImageAspectFlagBits::eColor },
-
-          m_drawImageResolve { m_device,
-                               m_allocator,
-                               m_drawImage.getDimensions(),
-                               m_drawImage.getFormat(),
-                               vk::SampleCountFlagBits::e1,
-                               vk::ImageUsageFlagBits::eColorAttachment |
-                                   vk::ImageUsageFlagBits::eTransferSrc |
-                                   vk::ImageUsageFlagBits::eTransferDst,
-                               vk::ImageAspectFlagBits::eColor },
-
-          m_depthImage { m_device,
-                         m_allocator,
-                         m_drawImage.getDimensions(),
-                         kDepthStencilFormat,
-                         m_device.getMaxUsableSampleCount(),
-                         vk::ImageUsageFlagBits::eDepthStencilAttachment,
-                         vk::ImageAspectFlagBits::eDepth }
-    // clang_format on
+          m_textures { m_images }
     {
-        enki::TaskScheduler task_scheduler;
+        m_drawImage = m_images.create("draw image",
+                                      m_device,
+                                      m_allocator,
+                                      m_surface.getFramebufferExtent(),
+                                      vk::Format::eR16G16B16A16Sfloat,
+                                      m_device.getMaxUsableSampleCount(),
+                                      vk::ImageUsageFlagBits::eTransferSrc |
+                                          vk::ImageUsageFlagBits::eTransferDst |  // maybe remove?
+                                          vk::ImageUsageFlagBits::eColorAttachment,
+                                      vk::ImageAspectFlagBits::eColor);
 
-        task_scheduler.Initialize({ .numTaskThreadsToCreate = 4 });
+        m_drawImageResolve =
+            m_images.create("draw image resolve",
+                            m_device,
+                            m_allocator,
+                            m_images.access(m_drawImage).getDimensions(),
+                            m_images.access(m_drawImage).getFormat(),
+                            vk::SampleCountFlagBits::e1,
+                            vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc |
+                                vk::ImageUsageFlagBits::eTransferDst,
+                            vk::ImageAspectFlagBits::eColor);
+
+        m_depthImage = m_images.create("depth image",
+                                       m_device,
+                                       m_allocator,
+                                       m_images.access(m_drawImage).getDimensions(),
+                                       kDepthStencilFormat,
+                                       m_device.getMaxUsableSampleCount(),
+                                       vk::ImageUsageFlagBits::eDepthStencilAttachment,
+                                       vk::ImageAspectFlagBits::eDepth);
+        // enki::TaskScheduler task_scheduler;
+
+        // task_scheduler.Initialize({ .numTaskThreadsToCreate = 4 });
 
         glslang::InitializeProcess();
 
@@ -126,12 +127,13 @@ namespace renderer::backend
                 }
             }
 
-            m_dummyTexture = Image(m_device,
-                                   m_allocator,
-                                   m_commandManager,
-                                   vk::Extent2D { 32, 32 },
-                                   pixels.data(),
-                                   sizeof(float) * pixels.size());
+            m_dummyTexture = m_textures.create("dummy texture",
+                                               m_device,
+                                               m_allocator,
+                                               m_commandManager,
+                                               vk::Extent2D { 32, 32 },
+                                               pixels.data(),
+                                               sizeof(float) * pixels.size());
         }
 
         m_gpuSceneDataBuffer = GPUBuffer(m_allocator,
@@ -169,7 +171,7 @@ namespace renderer::backend
             auto pipelineConfig =
                 GraphicsPipelineConfig()
                     .setShaderManager(shaders)
-                    .setColorAttachmentFormat(m_drawImage.getFormat())
+                    .setColorAttachmentFormat(m_images.access(m_drawImage).getFormat())
                     .setDepthAttachmentFormat(kDepthStencilFormat)
                     .setDepthStencilSettings(true, vk::CompareOp::eGreaterOrEqual)
                     // .setCullingSettings(vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise)
@@ -191,8 +193,8 @@ namespace renderer::backend
             ctx = TracyVkContextCalibrated(
                 *m_device.getPhysical(),
                 *m_device.get(),
-                *m_device.getGraphicsQueue(),
-                *m_commandManager.getGraphicsCmdBuffer(i),
+                *m_device.getMainQueue(),
+                *m_commandManager.getMainCmdBuffer(i),
                 reinterpret_cast<PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT>(vkGetInstanceProcAddr(
                     *m_instance.get(), "vkGetPhysicalDeviceCalibratableTimeDomainsEXT")),
                 reinterpret_cast<PFN_vkGetCalibratedTimestampsEXT>(vkGetInstanceProcAddr(
@@ -233,8 +235,9 @@ namespace renderer::backend
         m_scene = Model(m_device,
                         m_allocator,
                         m_commandManager,
+                        m_images,
                         m_textureArrayDescriptorLayout,
-                        m_dummyTexture.getImageView(),
+                        m_images.access(m_textures.access(m_dummyTexture).getImage()).getImageView(),
                         m_dummySampler);
 
         auto glTFFile =
@@ -350,19 +353,20 @@ namespace renderer::backend
                                    ImGuiColorEditFlags_PickerHueBar);
 
         ImGui_ImplVulkan_InitInfo initInfo {
-            .Instance                    = *m_instance.get(),
-            .PhysicalDevice              = *m_device.getPhysical(),
-            .Device                      = *m_device.get(),
-            .QueueFamily                 = m_device.getQueueFamilyIndices().mainFamily,
-            .Queue                       = *m_device.getMainQueue(),
-            .DescriptorPool              = *m_imGuiPool,
-            .MinImageCount               = kNumFramesInFlight,
-            .ImageCount                  = utils::size(m_swapchain.getImageViews()),
-            .MSAASamples                 = VK_SAMPLE_COUNT_1_BIT,
-            .UseDynamicRendering         = true,
-            .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo()
-                                               .setColorAttachmentFormats(m_surface.getDetails().format)
-                                               .setDepthAttachmentFormat(m_depthImage.getFormat()),
+            .Instance            = *m_instance.get(),
+            .PhysicalDevice      = *m_device.getPhysical(),
+            .Device              = *m_device.get(),
+            .QueueFamily         = m_device.getQueueFamilyIndices().mainFamily,
+            .Queue               = *m_device.getMainQueue(),
+            .DescriptorPool      = *m_imGuiPool,
+            .MinImageCount       = kNumFramesInFlight,
+            .ImageCount          = utils::size(m_swapchain.getImageViews()),
+            .MSAASamples         = VK_SAMPLE_COUNT_1_BIT,
+            .UseDynamicRendering = true,
+            .PipelineRenderingCreateInfo =
+                vk::PipelineRenderingCreateInfo()
+                    .setColorAttachmentFormats(m_surface.getDetails().format)
+                    .setDepthAttachmentFormat(m_images.access(m_depthImage).getFormat()),
             .CheckVkResultFn = kDebug ? reinterpret_cast<void (*)(VkResult)>(&imguiCheckerFn) : nullptr,
         };
 
@@ -430,9 +434,9 @@ namespace renderer::backend
 
         m_swapchain = Swapchain(m_device, m_surface);
 
-        m_drawImage.resize(m_surface.getFramebufferExtent());
-        m_drawImageResolve.resize(m_surface.getFramebufferExtent());
-        m_depthImage.resize(m_surface.getFramebufferExtent());
+        m_images.access(m_drawImage).resize(m_surface.getFramebufferExtent());
+        m_images.access(m_drawImageResolve).resize(m_surface.getFramebufferExtent());
+        m_images.access(m_depthImage).resize(m_surface.getFramebufferExtent());
     }
 
     void RendererBackend::updateDescriptors(glm::vec3 cameraPos,
@@ -448,51 +452,51 @@ namespace renderer::backend
             .viewproj          = projection * view,
             .ambientColor      = glm::vec4(.1f),
             .cameraPos         = cameraPos,
-            .screenWeight      = static_cast<float>(m_drawImage.getDimensions().width),
+            .screenWeight      = static_cast<float>(m_images.access(m_drawImage).getDimensions().width),
             .sunlightDirection = glm::vec3 { -0.2f, -1.0f, -0.3f },
-            .screenHeight      = static_cast<float>(m_drawImage.getDimensions().height),
+            .screenHeight      = static_cast<float>(m_images.access(m_drawImage).getDimensions().height),
         };
     }
 
-    AsynchronousLoader::AsynchronousLoader(enki::TaskScheduler* taskScheduler,
-                                           Device& device,
-                                           Allocator& allocator)
-        : task_scheduler { taskScheduler }
-    {
-        fileLoadRequests.reserve(16);
-        uploadRequests.reserve(16);
-
-        stagingBuffer = GPUBuffer(device,
-                                  allocator,
-                                  "Async loader staging buffer",
-                                  64 * 1024 * 1024,
-                                  vk::BufferUsageFlagBits::eTransferSrc,
-                                  VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                  VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-                                      VMA_ALLOCATION_CREATE_MAPPED_BIT);
-
-        for (uint32_t i : vi::iota(0u, kNumFramesInFlight))
-        {
-            commandPools[i] = device->createCommandPool(
-                                  vk::CommandPoolCreateInfo()
-                                      .setQueueFamilyIndex(device.getQueueFamilyIndices().transferFamily)
-                                      .setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer)) >>
-                              ResultChecker();
-
-            commandBuffers[i] =
-                std::move((device->allocateCommandBuffers(vk::CommandBufferAllocateInfo()
-                                                              .setLevel(vk::CommandBufferLevel::ePrimary)
-                                                              .setCommandBufferCount(1)
-                                                              .setCommandPool(commandPools[i])) >>
-                           ResultChecker())[0]);
-        }
-
-        transferCompleteSemaphore = device->createSemaphore(vk::SemaphoreCreateInfo()) >> ResultChecker();
-
-        transferFence =
-            device->createFence(vk::FenceCreateInfo().setFlags(vk::FenceCreateFlagBits::eSignaled)) >>
-            ResultChecker();
-    }
+    // AsynchronousLoader::AsynchronousLoader(enki::TaskScheduler* taskScheduler,
+    //                                        Device& device,
+    //                                        Allocator& allocator)
+    //     : task_scheduler { taskScheduler }
+    // {
+    //     fileLoadRequests.reserve(16);
+    //     uploadRequests.reserve(16);
+    //
+    //     stagingBuffer = GPUBuffer(device,
+    //                               allocator,
+    //                               "Async loader staging buffer",
+    //                               64 * 1024 * 1024,
+    //                               vk::BufferUsageFlagBits::eTransferSrc,
+    //                               VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+    //                               VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+    //                                   VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    //
+    //     for (uint32_t i : vi::iota(0u, kNumFramesInFlight))
+    //     {
+    //         commandPools[i] = device->createCommandPool(
+    //                               vk::CommandPoolCreateInfo()
+    //                                   .setQueueFamilyIndex(device.getQueueFamilyIndices().transferFamily)
+    //                                   .setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer)) >>
+    //                           ResultChecker();
+    //
+    //         commandBuffers[i] =
+    //             std::move((device->allocateCommandBuffers(vk::CommandBufferAllocateInfo()
+    //                                                           .setLevel(vk::CommandBufferLevel::ePrimary)
+    //                                                           .setCommandBufferCount(1)
+    //                                                           .setCommandPool(commandPools[i])) >>
+    //                        ResultChecker())[0]);
+    //     }
+    //
+    //     transferCompleteSemaphore = device->createSemaphore(vk::SemaphoreCreateInfo()) >> ResultChecker();
+    //
+    //     transferFence =
+    //         device->createFence(vk::FenceCreateInfo().setFlags(vk::FenceCreateFlagBits::eSignaled)) >>
+    //         ResultChecker();
+    // }
 
     // void AsynchronousLoader::update()
     // {

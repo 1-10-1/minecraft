@@ -35,38 +35,24 @@ namespace renderer::backend
 
         ~GPUBuffer();
 
-        GPUBuffer(GPUBuffer const&)                    = delete;
-        auto operator=(GPUBuffer const&) -> GPUBuffer& = delete;
-
-        auto operator=(GPUBuffer&& other) noexcept -> GPUBuffer&
+        friend void swap(GPUBuffer& first, GPUBuffer& second) noexcept
         {
-            if (*this == other || !other.m_allocation)
-            {
-                return *this;
-            }
+            using std::swap;
 
-            m_buffer     = other.m_buffer;
-            m_allocator  = other.m_allocator;
-            m_allocation = other.m_allocation;
-            m_allocInfo  = other.m_allocInfo;
+            swap(first.m_buffer, second.m_buffer);
+            swap(first.m_allocator, second.m_allocator);
+            swap(first.m_allocInfo, second.m_allocInfo);
+            swap(first.m_allocation, second.m_allocation);
+        }
 
-            other.m_buffer     = VK_NULL_HANDLE;
-            other.m_allocation = nullptr;
-            other.m_allocInfo  = {};
+        GPUBuffer(GPUBuffer&& other) noexcept : GPUBuffer() { swap(*this, other); };
+
+        GPUBuffer& operator=(GPUBuffer other) noexcept
+        {
+            swap(*this, other);
 
             return *this;
         }
-
-        GPUBuffer(GPUBuffer&& other) noexcept
-            : m_allocator { other.m_allocator },
-              m_buffer { other.m_buffer },
-              m_allocation { other.m_allocation },
-              m_allocInfo { other.m_allocInfo }
-        {
-            other.m_buffer     = VK_NULL_HANDLE;
-            other.m_allocation = nullptr;
-            other.m_allocInfo  = {};
-        };
 
         [[nodiscard]] operator bool() const { return m_buffer; }
 
