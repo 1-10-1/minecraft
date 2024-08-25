@@ -7,12 +7,15 @@
 
 namespace renderer::backend
 {
-    GPUBuffer::GPUBuffer(Allocator& allocator,
+    GPUBuffer::GPUBuffer(ResourceHandle handle,
+                         std::string const& name,
+                         Device& device,
+                         Allocator& allocator,
                          size_t allocSize,
                          vk::BufferUsageFlags bufferUsage,
                          VmaMemoryUsage memoryUsage,
                          VmaAllocationCreateFlags allocFlags)
-        : m_allocator { &allocator }
+        : ResourceBase { handle }, device { &device }, allocator { &allocator }
     {
         vk::BufferCreateInfo bufferInfo = {
             .size  = allocSize,
@@ -24,35 +27,24 @@ namespace renderer::backend
             .usage = memoryUsage,
         };
 
-        MC_ASSERT(vmaCreateBuffer(*m_allocator,
+        MC_ASSERT(vmaCreateBuffer(allocator.get(),
                                   &static_cast<VkBufferCreateInfo&>(bufferInfo),
                                   &vmaAllocInfo,
-                                  &m_buffer,
-                                  &m_allocation,
-                                  &m_allocInfo) == VK_SUCCESS);
+                                  &vulkanHandle,
+                                  &allocation,
+                                  &allocInfo) == VK_SUCCESS);
+        setName(name);
     }
-
-    GPUBuffer::GPUBuffer(Device& device,
-                         Allocator& allocator,
-                         std::string_view name,
-                         size_t allocSize,
-                         vk::BufferUsageFlags bufferUsage,
-                         VmaMemoryUsage memoryUsage,
-                         VmaAllocationCreateFlags allocFlags)
-        : GPUBuffer(allocator, allocSize, bufferUsage, memoryUsage, allocFlags)
-    {
-        setName(device, name);
-    };
 
     GPUBuffer::~GPUBuffer()
     {
-        if (m_buffer == nullptr)
+        if (vulkanHandle == nullptr)
         {
             return;
         }
 
-        vmaDestroyBuffer(*m_allocator, m_buffer, m_allocation);
+        vmaDestroyBuffer(*allocator, vulkanHandle, allocation);
 
-        m_buffer = nullptr;
+        vulkanHandle = nullptr;
     }
 }  // namespace renderer::backend

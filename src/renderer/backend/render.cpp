@@ -160,7 +160,7 @@ namespace renderer::backend
 
         if (m_scene.indices)
         {
-            cmdBuf.bindIndexBuffer(m_scene.indices, 0, vk::IndexType::eUint32);
+            cmdBuf.bindIndexBuffer(m_buffers.access(m_scene.indices), 0, vk::IndexType::eUint32);
         }
 
         cmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
@@ -191,7 +191,7 @@ namespace renderer::backend
 
             TracyVkZone(m_frameResources[m_currentFrame].tracyContext, cmdBuf, "Indirect draw call");
 
-            cmdBuf.drawIndexedIndirect(m_scene.drawIndirectBuffer,
+            cmdBuf.drawIndexedIndirect(m_buffers.access(m_scene.drawIndirectBuffer),
                                        0,
                                        numDraws,
                                        sizeof(decltype(m_scene.drawIndirectCommands)::value_type));
@@ -293,6 +293,7 @@ namespace renderer::backend
         window_flags |= ImGuiWindowFlags_NoCollapse;
         window_flags |= ImGuiWindowFlags_NoNav;
         window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus;
+        window_flags |= ImGuiWindowFlags_NoTitleBar;
 
         auto colorAttachment = vk::RenderingAttachmentInfo()
                                    .setImageView(targetImage)
@@ -333,16 +334,15 @@ namespace renderer::backend
             ImGui::Text("%s triangles %lu", humanReadableTriCount.data(), m_scene.triangleCount);
             ImGui::Text("%lu draws", m_scene.drawIndirectCommands.size());
 
-            ImGui::End();
-        }
+            ImGui::Text(
+                "%lu buffers (%lu active)", m_buffers.getNumResources(), m_buffers.getNumActiveResources());
 
-        {
-            ImGui::SetNextWindowPos(ImVec2(windowPadding, ImGui::GetIO().DisplaySize.y - windowPadding),
-                                    ImGuiCond_Always,
-                                    ImVec2(0.0f, 1.0f));
-            ImGui::SetNextWindowSize({ 0.f, 0.f });
+            ImGui::Text(
+                "%lu images (%lu active)", m_images.getNumResources(), m_images.getNumActiveResources());
 
-            ImGui::Begin("Material");
+            ImGui::Text("%lu textures (%lu active)",
+                        m_textures.getNumResources(),
+                        m_textures.getNumActiveResources());
 
             ImGui::End();
         }

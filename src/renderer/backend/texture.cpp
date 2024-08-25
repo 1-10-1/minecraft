@@ -7,15 +7,13 @@ using namespace renderer::backend;
 
 Texture::Texture(ResourceHandle handle,
                  std::string const& name,
-                 ResourceManager<Image>& imageManager,
                  Device& device,
-                 Allocator& allocator,
                  CommandManager& commandManager,
+                 ResourceManager<Image>& imageManager,
+                 ResourceManager<GPUBuffer>& bufferManager,
                  StbiWrapper const& stbiImage)
     : ResourceBase { handle },
       image { imageManager.create(name,
-                                  device,
-                                  allocator,
                                   stbiImage.getDimensions(),
                                   vk::Format::eR8G8B8A8Unorm,
                                   vk::SampleCountFlagBits::e1,
@@ -28,22 +26,23 @@ Texture::Texture(ResourceHandle handle,
 {
     vk::Extent2D dimensions = stbiImage.getDimensions();
 
-    ResourceAccessor<Image> img = imageManager.access(image);
+    ResourceHandle uploadBuffer = bufferManager.create(
+        std::format("Upload buffer for texture '{}'", name),
+        stbiImage.getDataSize(),
+        vk::BufferUsageFlagBits::eTransferSrc,
+        VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
-    GPUBuffer uploadBuffer(allocator,
-                           stbiImage.getDataSize(),
-                           vk::BufferUsageFlagBits::eTransferSrc,
-                           VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                           VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-                               VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    ResourceAccessor<Image> imageAccessor            = imageManager.access(image);
+    ResourceAccessor<GPUBuffer> uploadBufferAccessor = bufferManager.access(uploadBuffer);
 
-    std::memcpy(uploadBuffer.getMappedData(), stbiImage.getData(), stbiImage.getDataSize());
+    std::memcpy(uploadBufferAccessor.getMappedData(), stbiImage.getData(), stbiImage.getDataSize());
 
     {
         ScopedCommandBuffer commandBuffer(device, commandManager.getMainCmdPool(), device.getMainQueue());
 
         Image::transition(commandBuffer,
-                          img.getVulkanHandle(),
+                          imageAccessor.getVulkanHandle(),
                           vk::ImageLayout::eUndefined,
                           vk::ImageLayout::eTransferDstOptimal);
 
@@ -61,8 +60,10 @@ Texture::Texture(ResourceHandle handle,
                 .imageExtent = { dimensions.width, dimensions.height, 1 },
             };
 
-        commandBuffer->copyBufferToImage(
-            uploadBuffer, img.getVulkanHandle(), vk::ImageLayout::eTransferDstOptimal, { region });
+        commandBuffer->copyBufferToImage(uploadBufferAccessor,
+                                         imageAccessor.getVulkanHandle(),
+                                         vk::ImageLayout::eTransferDstOptimal,
+                                         { region });
 
         //transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL here
         // generateMipmaps(commandBuffer,
@@ -84,7 +85,7 @@ Texture::Texture(ResourceHandle handle,
                     .newLayout     = vk::ImageLayout::eShaderReadOnlyOptimal,
                     .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
                     .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-                    .image = img.getVulkanHandle(),
+                    .image = imageAccessor.getVulkanHandle(),
                     .subresourceRange = {
                         .aspectMask     = vk::ImageAspectFlagBits::eColor,
                         .levelCount     = 1,
@@ -98,18 +99,16 @@ Texture::Texture(ResourceHandle handle,
 
 Texture::Texture(ResourceHandle handle,
                  std::string const& name,
-                 ResourceManager<Image>& imageManager,
                  Device& device,
-                 Allocator& allocator,
                  CommandManager& commandManager,
+                 ResourceManager<Image>& imageManager,
+                 ResourceManager<GPUBuffer>& bufferManager,
                  vk::Extent2D dimensions,
                  void* data,
                  size_t dataSize)
     : ResourceBase { handle },
       image { imageManager.create(
           name,
-          device,
-          allocator,
           dimensions,
           vk::Format::eR8G8B8A8Unorm,
           vk::SampleCountFlagBits::e1,
@@ -118,16 +117,17 @@ Texture::Texture(ResourceHandle handle,
           vk::ImageAspectFlagBits::eColor,
           static_cast<uint32_t>(std::floor(std::log2(std::max(dimensions.width, dimensions.height)))) + 1) }
 {
-    ResourceAccessor<Image> img = imageManager.access(image);
+    ResourceHandle uploadBuffer = bufferManager.create(
+        std::format("Upload buffer for texture '{}'", name),
+        dataSize,
+        vk::BufferUsageFlagBits::eTransferSrc,
+        VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
-    GPUBuffer uploadBuffer(allocator,
-                           dataSize,
-                           vk::BufferUsageFlagBits::eTransferSrc,
-                           VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                           VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-                               VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    ResourceAccessor<Image> img                      = imageManager.access(image);
+    ResourceAccessor<GPUBuffer> uploadBufferAccessor = bufferManager.access(uploadBuffer);
 
-    std::memcpy(uploadBuffer.getMappedData(), data, dataSize);
+    std::memcpy(uploadBufferAccessor.getMappedData(), data, dataSize);
 
     {
         // TODO(aether) graphics or transfer?
@@ -153,7 +153,7 @@ Texture::Texture(ResourceHandle handle,
             };
 
         commandBuffer->copyBufferToImage(
-            uploadBuffer, img.getVulkanHandle(), vk::ImageLayout::eTransferDstOptimal, { region });
+            uploadBufferAccessor, img.getVulkanHandle(), vk::ImageLayout::eTransferDstOptimal, { region });
 
         // transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL here
         // generateMipmaps(commandBuffer,

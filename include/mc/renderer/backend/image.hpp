@@ -155,4 +155,16 @@ namespace renderer::backend
             get().create();
         }
     };
+
+    template<>
+    class ResourceManager<Image> final : public ResourceManagerBase<Image>
+    {
+        friend class ResourceManagerBase<Image>;
+
+        std::tuple<Device&, Allocator&> m_extraConstructionParams;
+
+    public:
+        ResourceManager(Device& device, Allocator& allocator)
+            : m_extraConstructionParams { std::tie(device, allocator) } {};
+    };
 }  // namespace renderer::backend

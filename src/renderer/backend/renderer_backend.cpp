@@ -55,11 +55,13 @@ namespace renderer::backend
 
           m_commandManager { m_device },
 
-          m_textures { m_images }
+          m_buffers { m_device, m_allocator },
+
+          m_images { m_device, m_allocator },
+
+          m_textures { m_device, m_commandManager, m_images, m_buffers }
     {
         m_drawImage = m_images.create("draw image",
-                                      m_device,
-                                      m_allocator,
                                       m_surface.getFramebufferExtent(),
                                       vk::Format::eR16G16B16A16Sfloat,
                                       m_device.getMaxUsableSampleCount(),
@@ -70,8 +72,6 @@ namespace renderer::backend
 
         m_drawImageResolve =
             m_images.create("draw image resolve",
-                            m_device,
-                            m_allocator,
                             m_images.access(m_drawImage).getDimensions(),
                             m_images.access(m_drawImage).getFormat(),
                             vk::SampleCountFlagBits::e1,
@@ -80,8 +80,6 @@ namespace renderer::backend
                             vk::ImageAspectFlagBits::eColor);
 
         m_depthImage = m_images.create("depth image",
-                                       m_device,
-                                       m_allocator,
                                        m_images.access(m_drawImage).getDimensions(),
                                        kDepthStencilFormat,
                                        m_device.getMaxUsableSampleCount(),
@@ -127,21 +125,16 @@ namespace renderer::backend
                 }
             }
 
-            m_dummyTexture = m_textures.create("dummy texture",
-                                               m_device,
-                                               m_allocator,
-                                               m_commandManager,
-                                               vk::Extent2D { 32, 32 },
-                                               pixels.data(),
-                                               sizeof(float) * pixels.size());
+            m_dummyTexture = m_textures.create(
+                "dummy texture", vk::Extent2D { 32, 32 }, pixels.data(), sizeof(float) * pixels.size());
         }
 
-        m_gpuSceneDataBuffer = GPUBuffer(m_allocator,
-                                         sizeof(GPUSceneData),
-                                         vk::BufferUsageFlagBits::eUniformBuffer,
-                                         VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                         VMA_ALLOCATION_CREATE_MAPPED_BIT |
-                                             VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+        m_gpuSceneDataBuffer = m_buffers.create("GPU Scene Data",
+                                                sizeof(GPUSceneData),
+                                                vk::BufferUsageFlagBits::eUniformBuffer,
+                                                VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                                VMA_ALLOCATION_CREATE_MAPPED_BIT |
+                                                    VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
         ShaderManager shaders(m_device);
         shaders.addShader("fs.frag").addShader("vs.vert");
@@ -233,9 +226,9 @@ namespace renderer::backend
     void RendererBackend::loadGltfScene()
     {
         m_scene = Model(m_device,
-                        m_allocator,
                         m_commandManager,
                         m_images,
+                        m_buffers,
                         m_textureArrayDescriptorLayout,
                         m_images.access(m_textures.access(m_dummyTexture).getImage()).getImageView(),
                         m_dummySampler);
@@ -301,8 +294,11 @@ namespace renderer::backend
 
         DescriptorWriter writer;
 
-        writer.writeBuffer(
-            0, m_gpuSceneDataBuffer, sizeof(GPUSceneData), 0, vk::DescriptorType::eUniformBuffer);
+        writer.writeBuffer(0,
+                           m_buffers.access(m_gpuSceneDataBuffer),
+                           sizeof(GPUSceneData),
+                           0,
+                           vk::DescriptorType::eUniformBuffer);
         writer.updateSet(m_device, m_sceneDataDescriptors);
 
         m_textureArrayDescriptorLayout =
@@ -444,7 +440,8 @@ namespace renderer::backend
                                             glm::mat4 view,
                                             glm::mat4 projection)
     {
-        auto& sceneUniformData = *static_cast<GPUSceneData*>(m_gpuSceneDataBuffer.getMappedData());
+        auto& sceneUniformData =
+            *static_cast<GPUSceneData*>(m_buffers.access(m_gpuSceneDataBuffer).getMappedData());
 
         sceneUniformData = GPUSceneData {
             .view              = view,

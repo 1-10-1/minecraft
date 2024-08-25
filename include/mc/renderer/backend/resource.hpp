@@ -1,6 +1,7 @@
 #pragma once
 
 #include "mc/asserts.hpp"
+#include "mc/logger.hpp"
 
 #include <cstdint>
 #include <limits>
@@ -99,6 +100,9 @@ namespace renderer::backend
     template<typename Resource>
     class ResourceManager final : public ResourceManagerBase<Resource>
     {
+        friend class ResourceManagerBase<Resource>;
+
+        std::tuple<> m_extraConstructionParams {};
     };
 
     template<typename Resource>
@@ -124,35 +128,41 @@ namespace renderer::backend
         ResourceManagerBase(ResourceManagerBase&&)            = default;
         ResourceManagerBase& operator=(ResourceManagerBase&&) = default;
 
-        auto getExtraConstructionParams() { return std::make_tuple(); };
-
-        // Using explicit object parameter here so we can use the derived class's getExtraParams() (if present)
+        // Using explicit object parameter here so we can use the derived class's m_extraConstructionParams (if present)
         template<typename Self, typename... Args>
         constexpr ResourceHandle create(this Self&& self, std::string const& name, Args&&... args)
         {
+            if (self.m_dormantIndices.size() > 100)
+            {
+                logger::warn("Resource manager has an unprecended amount of inactive resources");
+            }
+
             auto createResource = [](auto&&... args)
             {
                 return Resource(std::forward<decltype(args)>(args)...);
             };
 
-            Resource resource = std::apply(
-                createResource,
-                std::tuple_cat(
-                    std::make_tuple(ResourceHandle(self.m_resources.size(), self.m_creationCounter++, name)),
-                    std::tie(name),
-                    self.getExtraConstructionParams(),
-                    std::forward_as_tuple(std::forward<Args>(args)...)));
-
             if (self.m_dormantIndices.empty())
             {
-                Resource& res = self.m_resources.emplace_back(std::move(resource));
+                Resource& res = self.m_resources.emplace_back(
+                    std::apply(createResource,
+                               std::tuple_cat(std::make_tuple(ResourceHandle(
+                                                  self.m_resources.size(), self.m_creationCounter++, name)),
+                                              std::tie(name),
+                                              self.m_extraConstructionParams,
+                                              std::forward_as_tuple(std::forward<Args>(args)...))));
 
                 return res.getHandle();
             }
             else
             {
-                Resource& dormantResource = self.m_resources[self.m_dormantIndices.back()] =
-                    std::move(resource);
+                Resource& dormantResource = self.m_resources[self.m_dormantIndices.back()] = std::apply(
+                    createResource,
+                    std::tuple_cat(std::make_tuple(ResourceHandle(
+                                       self.m_dormantIndices.back(), self.m_creationCounter++, name)),
+                                   std::tie(name),
+                                   self.m_extraConstructionParams,
+                                   std::forward_as_tuple(std::forward<Args>(args)...)));
 
                 self.m_dormantIndices.pop_back();
 
@@ -179,6 +189,10 @@ namespace renderer::backend
             return ResourceAccessor<Resource>(static_cast<ResourceManager<Resource>&>(*this), handle);
         };
 
+        size_t getNumResources() { return m_resources.size(); };
+
+        size_t getNumActiveResources() { return m_resources.size() - m_dormantIndices.size(); };
+
     private:
         Resource& getResource(ResourceHandle handle)
         {
@@ -190,6 +204,8 @@ namespace renderer::backend
 
             return m_resources[handle.getIndex()];
         }
+
+        auto getExtraConstructionParams() { return std::make_tuple(); };
 
         std::vector<Resource> m_resources;
         std::vector<uint32_t> m_dormantIndices;

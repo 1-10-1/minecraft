@@ -49,8 +49,8 @@ namespace renderer::backend
         ~GlTFTexture() = default;
 
         GlTFTexture(Device& device,
-                    Allocator& allocator,
                     CommandManager& cmdManager,
+                    ResourceManager<GPUBuffer>& bufferManager,
                     ResourceManager<Image>& imgManager,
                     tinygltf::Image& gltfimage,
                     std::filesystem::path path,
@@ -195,7 +195,7 @@ namespace renderer::backend
     {
         Mesh() = default;
 
-        Mesh(Allocator& allocator, glm::mat4 matrix);
+        Mesh(ResourceManager<GPUBuffer>& bufferManager, glm::mat4 matrix);
         ~Mesh() = default;
 
         Mesh(Mesh const&)            = delete;
@@ -215,7 +215,7 @@ namespace renderer::backend
 
         struct UniformBuffer
         {
-            GPUBuffer buffer;
+            ResourceHandle buffer;
             VkDescriptorBufferInfo descriptor;
             VkDescriptorSet descriptorSet;
             void* mapped;
@@ -333,16 +333,16 @@ namespace renderer::backend
         ~Model();
 
         Model(Device& device,
-              Allocator& allocator,
               CommandManager& cmdManager,
               ResourceManager<Image>& imageManager,
+              ResourceManager<GPUBuffer>& bufferManager,
               vk::DescriptorSetLayout materialDescriptorSetLayout,
               vk::ImageView dummyImage,
               vk::Sampler dummySampler)
             : m_device { &device },
-              m_allocator { &allocator },
               m_cmdManager { &cmdManager },
               m_imageManager { &imageManager },
+              m_bufferManager { &bufferManager },
               m_materialDescriptorSetLayout { materialDescriptorSetLayout },
               m_dummyImage { dummyImage },
               m_dummySampler { dummySampler }
@@ -355,11 +355,7 @@ namespace renderer::backend
         Model(Model const&)            = delete;
         Model& operator=(Model const&) = delete;
 
-        GPUBuffer indices;
-        GPUBuffer vertices;
-        GPUBuffer materialBuffer;
-        GPUBuffer drawIndirectBuffer;
-        GPUBuffer primitiveDataBuffer;
+        ResourceHandle indices, vertices, materialBuffer, drawIndirectBuffer, primitiveDataBuffer;
 
         vk::DescriptorSet bindlessMaterialDescriptorSet { nullptr };
 
@@ -455,9 +451,9 @@ namespace renderer::backend
 
     private:
         Device* m_device { nullptr };
-        Allocator* m_allocator { nullptr };
         CommandManager* m_cmdManager { nullptr };
         ResourceManager<Image>* m_imageManager { nullptr };
+        ResourceManager<GPUBuffer>* m_bufferManager { nullptr };
 
         DescriptorAllocator m_materialDescriptorAllocator {};
         vk::DescriptorSetLayout m_materialDescriptorSetLayout { nullptr };

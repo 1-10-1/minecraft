@@ -1,5 +1,6 @@
 #pragma once
 
+#include "buffer.hpp"
 #include "command.hpp"
 #include "image.hpp"
 #include "resource.hpp"
@@ -52,18 +53,18 @@ namespace renderer::backend
 
         Texture(ResourceHandle handle,
                 std::string const& name,
-                ResourceManager<Image>& imageManager,
                 Device& device,
-                Allocator& allocator,
                 CommandManager& commandManager,
+                ResourceManager<Image>& imageManager,
+                ResourceManager<GPUBuffer>& bufferManager,
                 StbiWrapper const& stbiImage);
 
         Texture(ResourceHandle handle,
                 std::string const& name,
-                ResourceManager<Image>& imageManager,
                 Device& device,
-                Allocator& allocator,
                 CommandManager& commandManager,
+                ResourceManager<Image>& imageManager,
+                ResourceManager<GPUBuffer>& bufferManager,
                 vk::Extent2D dimensions,
                 void* data,
                 size_t dataSize);
@@ -105,12 +106,16 @@ namespace renderer::backend
     template<>
     class ResourceManager<Texture> final : public ResourceManagerBase<Texture>
     {
+        friend class ResourceManagerBase<Texture>;
+
+        std::tuple<Device&, CommandManager&, ResourceManager<Image>&, ResourceManager<GPUBuffer>&>
+            m_extraConstructionParams;
+
     public:
-        ResourceManager(ResourceManager<Image>& imageManager) : m_imageManager { imageManager } {};
-
-        auto getExtraConstructionParams() { return std::tie(m_imageManager); };
-
-    private:
-        ResourceManager<Image>& m_imageManager;
+        ResourceManager(Device& device,
+                        CommandManager& commandManager,
+                        ResourceManager<Image>& imageManager,
+                        ResourceManager<GPUBuffer>& bufferManager)
+            : m_extraConstructionParams { device, commandManager, imageManager, bufferManager } {};
     };
 }  // namespace renderer::backend

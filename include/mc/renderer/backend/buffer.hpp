@@ -1,7 +1,7 @@
 #pragma once
 
 #include "allocator.hpp"
-#include <vulkan/vulkan_core.h>
+#include "resource.hpp"
 
 #if DEBUG
 #    include "vk_checker.hpp"
@@ -13,62 +13,96 @@
 namespace renderer::backend
 {
     // FIXME(aether) This name is misleading, GPUBuffer can be a cpu-only staging buffer
-    class GPUBuffer
+    class GPUBuffer : public ResourceBase
     {
-    public:
-        GPUBuffer() = default;
+        friend class ResourceAccessor<GPUBuffer>;
+        friend class ResourceManagerBase<GPUBuffer>;
 
-        GPUBuffer(Allocator& allocator,
-                  size_t allocSize,
-                  vk::BufferUsageFlags bufferUsage,
-                  VmaMemoryUsage memoryUsage,
-                  VmaAllocationCreateFlags allocFlags = 0);
+        GPUBuffer() : ResourceBase(ResourceHandle(0, ResourceHandle::invalidCreationNumber)) {}
 
-        // Use this constructor to set a name
-        GPUBuffer(Device& device,
+        GPUBuffer(ResourceHandle handle,
+                  std::string const& name,
+                  Device& device,
                   Allocator& allocator,
-                  std::string_view name,
+
                   size_t allocSize,
                   vk::BufferUsageFlags bufferUsage,
                   VmaMemoryUsage memoryUsage,
                   VmaAllocationCreateFlags allocFlags = 0);
 
+    public:
         ~GPUBuffer();
 
         friend void swap(GPUBuffer& first, GPUBuffer& second) noexcept
         {
             using std::swap;
 
-            swap(first.m_buffer, second.m_buffer);
-            swap(first.m_allocator, second.m_allocator);
-            swap(first.m_allocInfo, second.m_allocInfo);
-            swap(first.m_allocation, second.m_allocation);
+            swap(first.vulkanHandle, second.vulkanHandle);
+            swap(first.allocator, second.allocator);
+            swap(first.allocInfo, second.allocInfo);
+            swap(first.allocation, second.allocation);
         }
 
-        GPUBuffer(GPUBuffer&& other) noexcept : GPUBuffer() { swap(*this, other); };
+        void setName(std::string_view name)
+        {
+#if DEBUG
+            vmaSetAllocationName(*allocator, allocation, name.data());
+
+            auto func = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
+                device->getInstance().getProcAddr("vkSetDebugUtilsObjectNameEXT"));
+
+            VkDebugUtilsObjectNameInfoEXT info {
+                .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+                .objectType   = VK_OBJECT_TYPE_BUFFER,
+                .objectHandle = reinterpret_cast<uint64_t>(vulkanHandle),
+                .pObjectName  = name.data(),
+            };
+
+            func(*device->get(), &info) >> ResultChecker();
+#endif
+        }
+
+        GPUBuffer(GPUBuffer&& other) noexcept : ResourceBase(std::move(other)) { swap(*this, other); };
 
         GPUBuffer& operator=(GPUBuffer other) noexcept
         {
             swap(*this, other);
 
+            ResourceBase::operator=(std::move(other));
+
             return *this;
         }
 
-        [[nodiscard]] operator bool() const { return m_buffer; }
+        Device* device { nullptr };
+        Allocator* allocator { nullptr };
 
-        [[nodiscard]] bool operator==(std::nullptr_t) const { return !m_buffer; }
+        VkBuffer vulkanHandle { VK_NULL_HANDLE };
+        VmaAllocation allocation { nullptr };
+        VmaAllocationInfo allocInfo {};
+    };
 
-        [[nodiscard]] operator vk::Buffer() const { return m_buffer; }
+    template<>
+    class ResourceAccessor<GPUBuffer> final : ResourceAccessorBase<GPUBuffer>
+    {
+    public:
+        ResourceAccessor(ResourceManager<GPUBuffer>& manager, ResourceHandle handle)
+            : ResourceAccessorBase<GPUBuffer> { manager, handle } {};
 
-        [[nodiscard]] auto operator->() const -> vk::Buffer { return m_buffer; }
+        [[nodiscard]] operator bool() const { return get().vulkanHandle; }
 
-        [[nodiscard]] auto get() const -> vk::Buffer { return m_buffer; }
+        [[nodiscard]] bool operator==(std::nullptr_t) const { return !get().vulkanHandle; }
+
+        [[nodiscard]] operator vk::Buffer() const { return get().vulkanHandle; }
+
+        [[nodiscard]] auto operator->() const -> vk::Buffer { return get().vulkanHandle; }
+
+        [[nodiscard]] auto getVulkanHandle() const -> vk::Buffer { return get().vulkanHandle; }
 
         [[nodiscard]] auto getName() const -> std::string_view
         {
 #if DEBUG
             VmaAllocationInfo allocInfo;
-            vmaGetAllocationInfo(*m_allocator, m_allocation, &allocInfo);
+            vmaGetAllocationInfo(*get().allocator, get().allocation, &allocInfo);
 
             return allocInfo.pName;
 #else
@@ -76,34 +110,27 @@ namespace renderer::backend
 #endif
         }
 
-        void setName(Device const& device, std::string_view name)
+        void setName(std::string_view name)
         {
 #if DEBUG
-            vmaSetAllocationName(*m_allocator, m_allocation, name.data());
-
-            auto func = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
-                device.getInstance().getProcAddr("vkSetDebugUtilsObjectNameEXT"));
-
-            VkDebugUtilsObjectNameInfoEXT info {
-                .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .objectType   = VK_OBJECT_TYPE_BUFFER,
-                .objectHandle = reinterpret_cast<uint64_t>(m_buffer),
-                .pObjectName  = name.data(),
-            };
-
-            func(*device.get(), &info) >> ResultChecker();
+            get().setName(name);
 #endif
         }
 
-        [[nodiscard]] auto getMappedData() const -> void* { return m_allocInfo.pMappedData; }
+        [[nodiscard]] auto getMappedData() const -> void* { return get().allocInfo.pMappedData; }
 
-        [[nodiscard]] auto getSize() const -> size_t { return m_allocInfo.size; }
+        [[nodiscard]] auto getSize() const -> size_t { return get().allocInfo.size; }
+    };
 
-    private:
-        Allocator* m_allocator { nullptr };
+    template<>
+    class ResourceManager<GPUBuffer> final : public ResourceManagerBase<GPUBuffer>
+    {
+        friend class ResourceManagerBase<GPUBuffer>;
 
-        VkBuffer m_buffer { VK_NULL_HANDLE };
-        VmaAllocation m_allocation { nullptr };
-        VmaAllocationInfo m_allocInfo {};
+        std::tuple<Device&, Allocator&> m_extraConstructionParams;
+
+    public:
+        ResourceManager(Device& device, Allocator& allocator)
+            : m_extraConstructionParams { std::tie(device, allocator) } {};
     };
 }  // namespace renderer::backend

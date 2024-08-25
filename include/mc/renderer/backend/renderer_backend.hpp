@@ -208,12 +208,11 @@ namespace renderer::backend
         DescriptorAllocator m_descriptorAllocator;
         CommandManager m_commandManager;
 
+        ResourceManager<GPUBuffer> m_buffers;
         ResourceManager<Image> m_images;
         ResourceManager<Texture> m_textures;
 
-        ResourceHandle m_drawImage;
-        ResourceHandle m_drawImageResolve;
-        ResourceHandle m_depthImage;
+        ResourceHandle m_drawImage, m_drawImageResolve, m_depthImage;
         vk::DescriptorSet m_sceneDataDescriptors { nullptr };
         vk::raii::DescriptorSetLayout m_sceneDataDescriptorLayout { nullptr },
             m_textureArrayDescriptorLayout { nullptr };
@@ -223,7 +222,7 @@ namespace renderer::backend
         PipelineLayout m_pipelineLayout;
         GraphicsPipeline m_pipeline;
 
-        GPUBuffer m_gpuSceneDataBuffer;
+        ResourceHandle m_gpuSceneDataBuffer;
 
         Model m_scene {};
 

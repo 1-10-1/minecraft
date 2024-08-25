@@ -70,13 +70,13 @@ namespace renderer::backend
 
     // Loads the image for this texture. Supports both glTF's web formats (jpg, png, embedded and external files) as well as external KTX2 files with basis universal texture compression
     GlTFTexture::GlTFTexture(Device& device,
-                             Allocator& allocator,
                              CommandManager& cmdManager,
+                             ResourceManager<GPUBuffer>& bufferManager,
                              ResourceManager<Image>& imageManager,
                              tinygltf::Image& gltfimage,
                              std::filesystem::path path,
                              TextureSampler textureSampler)
-        : m_device { &device }, m_allocator { &allocator }, m_commandManager { &cmdManager }
+        : m_device { &device }, m_commandManager { &cmdManager }
     {
         // KTX2 files need to be handled explicitly
         bool isKtx2 = false;
@@ -196,14 +196,14 @@ namespace renderer::backend
                 totalBufferSize += numBlocksOrPixels * bytesPerBlockOrPixel;
             }
 
-            GPUBuffer stagingBuffer(*m_device,
-                                    *m_allocator,
-                                    "Image staging buffer (compressed)",
-                                    totalBufferSize,
-                                    vk::BufferUsageFlagBits::eTransferSrc,
-                                    VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                    VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-                                        VMA_ALLOCATION_CREATE_MAPPED_BIT);
+            ResourceHandle stagingBuffer = bufferManager.create(
+                "Image staging buffer (compressed)",
+                totalBufferSize,
+                vk::BufferUsageFlagBits::eTransferSrc,
+                VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+            ResourceAccessor<GPUBuffer> stagingBufferAccessor = bufferManager.access(stagingBuffer);
 
             unsigned char* buffer    = new unsigned char[totalBufferSize];
             unsigned char* bufferPtr = &buffer[0];
@@ -228,13 +228,11 @@ namespace renderer::backend
                 bufferPtr += numBlocksOrPixels * bytesPerBlockOrPixel;
             }
 
-            std::memcpy(stagingBuffer.getMappedData(), buffer, totalBufferSize);
+            std::memcpy(stagingBufferAccessor.getMappedData(), buffer, totalBufferSize);
 
             // FIXME(aether) stop using imageManager here
             // differ all this processing to the Texture class
             texture = imageManager.create(std::format("Compressed gltf texture ({})", gltfimage.uri),
-                                          device,
-                                          allocator,
                                           vk::Extent2D { width, height },
                                           format,
                                           vk::SampleCountFlagBits::e1,
@@ -298,7 +296,7 @@ namespace renderer::backend
                 };
 
                 copyCmd->copyBufferToImage(
-                    stagingBuffer, img, vk::ImageLayout::eTransferDstOptimal, { bufferCopyRegion });
+                    stagingBufferAccessor, img, vk::ImageLayout::eTransferDstOptimal, { bufferCopyRegion });
 
                 bufferOffset += outputSize;
             }
@@ -318,6 +316,8 @@ namespace renderer::backend
                                      { imageMemoryBarrier });
 
             copyCmd.flush();
+
+            bufferManager.destroy(stagingBuffer);
 
             delete[] buffer;
             delete[] inputData;
@@ -361,17 +361,18 @@ namespace renderer::backend
                               (vk::FormatFeatureFlagBits::eBlitSrc | vk::FormatFeatureFlagBits::eBlitDst),
                           "Blitting is not supported");
 
-            GPUBuffer stagingBuffer(*m_device,
-                                    *m_allocator,
-                                    "Image staging buffer (uncompressed)",
-                                    bufferSize,
-                                    vk::BufferUsageFlagBits::eTransferSrc,
-                                    VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                    VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-                                        // TODO(aether) maybe unmap it asap if thats gonna be benefitial
-                                        VMA_ALLOCATION_CREATE_MAPPED_BIT);
+            ResourceHandle stagingBuffer =
+                bufferManager.create("Image staging buffer (uncompressed)",
+                                     bufferSize,
+                                     vk::BufferUsageFlagBits::eTransferSrc,
+                                     VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                     VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                                         // TODO(aether) maybe unmap it asap if thats gonna be benefitial
+                                         VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
-            uint8_t* data = reinterpret_cast<uint8_t*>(stagingBuffer.getMappedData());
+            ResourceAccessor<GPUBuffer> stagingBufferAccessor = bufferManager.access(stagingBuffer);
+
+            uint8_t* data = reinterpret_cast<uint8_t*>(stagingBufferAccessor.getMappedData());
             std::memcpy(data, buffer, bufferSize);
 
             if (deleteBuffer)
@@ -380,8 +381,6 @@ namespace renderer::backend
             }
 
             texture = imageManager.create(std::format("Uncompressed gltf texture ({})", gltfimage.uri),
-                                          device,
-                                          allocator,
                                           vk::Extent2D { width, height },
                                           format,
                                           vk::SampleCountFlagBits::e1,
@@ -436,7 +435,7 @@ namespace renderer::backend
             // clang-format on
 
             cmdBuf->copyBufferToImage(
-                stagingBuffer, img, vk::ImageLayout::eTransferDstOptimal, { bufferCopyRegion });
+                stagingBufferAccessor, img, vk::ImageLayout::eTransferDstOptimal, { bufferCopyRegion });
 
             cmdBuf->pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands,
                                     vk::PipelineStageFlagBits::eAllCommands,
@@ -550,6 +549,10 @@ namespace renderer::backend
                                         .image            = img,
                                         .subresourceRange = subresourceRange,
                                     } });
+
+            cmdBuf.flush();
+
+            bufferManager.destroy(stagingBuffer);
         }
 
         sampler = device->createSampler(vk::SamplerCreateInfo {
@@ -591,7 +594,7 @@ namespace renderer::backend
     }
 
     // Mesh
-    Mesh::Mesh(Allocator& allocator, glm::mat4 matrix)
+    Mesh::Mesh(ResourceManager<GPUBuffer>& bufferManager, glm::mat4 matrix)
     {
         uniformBlock.matrix = matrix;
 
@@ -600,18 +603,20 @@ namespace renderer::backend
         // We'll need to create a separate copying mechanism in GPUBuffer where we check if the memory
         // resides in a device local + host visible memory, and if not, make sure we flush any writes and
         // also copy the staging buffer to the device local one.
-        uniformBuffer.buffer = GPUBuffer(allocator,
-                                         sizeof(uniformBlock),
-                                         vk::BufferUsageFlagBits::eUniformBuffer,
-                                         VMA_MEMORY_USAGE_AUTO,
-                                         VMA_ALLOCATION_CREATE_MAPPED_BIT |
-                                             VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+        uniformBuffer.buffer = bufferManager.create(
+            "Uniform buffer",
+            sizeof(uniformBlock),
+            vk::BufferUsageFlagBits::eUniformBuffer,
+            VMA_MEMORY_USAGE_AUTO,
+            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
-        uniformBuffer.mapped = uniformBuffer.buffer.getMappedData();
+        auto uniformBufferAccessor = bufferManager.access(uniformBuffer.buffer);
+
+        uniformBuffer.mapped = uniformBufferAccessor.getMappedData();
 
         std::memcpy(uniformBuffer.mapped, &uniformBlock, sizeof(UniformBlock));
 
-        uniformBuffer.descriptor = { uniformBuffer.buffer.get(), 0, sizeof(uniformBlock) };
+        uniformBuffer.descriptor = { uniformBufferAccessor.getVulkanHandle(), 0, sizeof(uniformBlock) };
     };
 
     void Mesh::setBoundingBox(glm::vec3 min, glm::vec3 max)
@@ -887,7 +892,7 @@ namespace renderer::backend
         if (node.mesh > -1)
         {
             tinygltf::Mesh const mesh     = model.meshes[node.mesh];
-            std::unique_ptr<Mesh> newMesh = std::make_unique<Mesh>(*m_allocator, newNode->matrix);
+            std::unique_ptr<Mesh> newMesh = std::make_unique<Mesh>(*m_bufferManager, newNode->matrix);
 
             for (size_t j = 0; j < mesh.primitives.size(); j++)
             {
@@ -1310,8 +1315,13 @@ namespace renderer::backend
                 textureSampler = textureSamplers[tex.sampler];
             }
 
-            textures.push_back(GlTFTexture(
-                *m_device, *m_allocator, *m_cmdManager, *m_imageManager, image, filePath, textureSampler));
+            textures.push_back(GlTFTexture(*m_device,
+                                           *m_cmdManager,
+                                           *m_bufferManager,
+                                           *m_imageManager,
+                                           image,
+                                           filePath,
+                                           textureSampler));
         }
     }
 
@@ -1783,126 +1793,139 @@ namespace renderer::backend
         drawIndirectCommands.shrink_to_fit();
 
         // TODO(aether) this is getting trivial
-        GPUBuffer stagingIndirectBuffer(
-            *m_device,
-            *m_allocator,
-            "Draw indirect buffer (staging)",
-            drawIndirectCommands.size() * sizeof(decltype(drawIndirectCommands)::value_type),
-            vk::BufferUsageFlagBits::eTransferSrc,
-            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT);
+        ResourceHandle stagingIndirectBuffer = m_bufferManager->create(
+                           "Draw indirect buffer (staging)",
+                           drawIndirectCommands.size() * sizeof(decltype(drawIndirectCommands)::value_type),
+                           vk::BufferUsageFlagBits::eTransferSrc,
+                           VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                           VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                               VMA_ALLOCATION_CREATE_MAPPED_BIT),
 
-        // TODO(aether) this is getting trivial
-        GPUBuffer stagingPrimitiveDataBuffer(
-            *m_device,
-            *m_allocator,
-            "Primitive data buffer (staging)",
-            primitiveData.size() * sizeof(decltype(primitiveData)::value_type),
-            vk::BufferUsageFlagBits::eTransferSrc,
-            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT);
+                       stagingPrimitiveDataBuffer = m_bufferManager->create(
+                           "Primitive data buffer (staging)",
+                           primitiveData.size() * sizeof(decltype(primitiveData)::value_type),
+                           vk::BufferUsageFlagBits::eTransferSrc,
+                           VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                           VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                               VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
-        std::memcpy(stagingIndirectBuffer.getMappedData(),
+        ResourceAccessor<GPUBuffer> stagingIndirectBufferAccessor =
+            m_bufferManager->access(stagingIndirectBuffer);
+        ResourceAccessor<GPUBuffer> stagingPrimitiveBufferAccessor =
+            m_bufferManager->access(stagingPrimitiveDataBuffer);
+
+        std::memcpy(stagingIndirectBufferAccessor.getMappedData(),
                     drawIndirectCommands.data(),
-                    stagingIndirectBuffer.getSize());
+                    stagingIndirectBufferAccessor.getSize());
 
-        std::memcpy(stagingPrimitiveDataBuffer.getMappedData(),
+        std::memcpy(stagingPrimitiveBufferAccessor.getMappedData(),
                     primitiveData.data(),
-                    stagingPrimitiveDataBuffer.getSize());
+                    stagingPrimitiveBufferAccessor.getSize());
 
-        drawIndirectBuffer =
-            GPUBuffer(*m_device,
-                      *m_allocator,
-                      "Draw indirect buffer",
-                      drawIndirectCommands.size() * sizeof(decltype(drawIndirectCommands)::value_type),
-                      vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndirectBuffer,
-                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                      VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+        drawIndirectBuffer = m_bufferManager->create(
+            "Draw indirect buffer",
+            drawIndirectCommands.size() * sizeof(decltype(drawIndirectCommands)::value_type),
+            vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndirectBuffer,
+            VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+            VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
 
-        primitiveDataBuffer =
-            GPUBuffer(*m_device,
-                      *m_allocator,
-                      "Primitive data buffer",
-                      primitiveData.size() * sizeof(decltype(primitiveData)::value_type),
-                      vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                      VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+        primitiveDataBuffer = m_bufferManager->create(
+            "Primitive data buffer",
+            primitiveData.size() * sizeof(decltype(primitiveData)::value_type),
+            vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+            VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+
+        ResourceAccessor<GPUBuffer> primitiveDataBufferAccessor =
+            m_bufferManager->access(primitiveDataBuffer);
 
         ScopedCommandBuffer cmdBuf(
             *m_device, m_cmdManager->getTransferCmdPool(), m_device->getTransferQueue(), true);
 
-        cmdBuf->copyBuffer(stagingIndirectBuffer,
-                           drawIndirectBuffer,
+        cmdBuf->copyBuffer(stagingIndirectBufferAccessor,
+                           m_bufferManager->access(drawIndirectBuffer),
                            vk::BufferCopy().setSize(drawIndirectCommands.size() *
                                                     sizeof(decltype(drawIndirectCommands)::value_type)));
         cmdBuf->copyBuffer(
-            stagingPrimitiveDataBuffer,
-            primitiveDataBuffer,
+            stagingPrimitiveBufferAccessor,
+            primitiveDataBufferAccessor,
             vk::BufferCopy().setSize(primitiveData.size() * sizeof(decltype(primitiveData)::value_type)));
 
         cmdBuf.flush();
 
-        primitiveDataBufferAddress =
-            m_device->get().getBufferAddress(vk::BufferDeviceAddressInfo().setBuffer(primitiveDataBuffer));
+        primitiveDataBufferAddress = m_device->get().getBufferAddress(
+            vk::BufferDeviceAddressInfo().setBuffer(primitiveDataBufferAccessor));
 
         size_t vertexBufferSize = vertexCount * sizeof(Vertex);
         size_t indexBufferSize  = indexCount * sizeof(uint32_t);
 
         MC_ASSERT(vertexBufferSize > 0);
 
-        GPUBuffer vertexStaging(*m_device,
-                                *m_allocator,
-                                "Vertex staging",
-                                vertexBufferSize,
-                                vk::BufferUsageFlagBits::eTransferSrc,
-                                VMA_MEMORY_USAGE_AUTO,
-                                VMA_ALLOCATION_CREATE_MAPPED_BIT |
-                                    VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+        ResourceHandle vertexStaging = m_bufferManager->create(
+            "Vertex staging",
+            vertexBufferSize,
+            vk::BufferUsageFlagBits::eTransferSrc,
+            VMA_MEMORY_USAGE_AUTO,
+            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
-        std::memcpy(vertexStaging.getMappedData(), loaderInfo.vertexBuffer, vertexBufferSize);
+        ResourceAccessor<GPUBuffer> vertexStagingAccessor = m_bufferManager->access(vertexStaging);
 
-        vertices =
-            GPUBuffer(*m_device,
-                      *m_allocator,
-                      "Main vertex buffer",
-                      vertexBufferSize,
-                      vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                      VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+        std::memcpy(vertexStagingAccessor.getMappedData(), loaderInfo.vertexBuffer, vertexBufferSize);
+
+        vertices = m_bufferManager->create("Main vertex buffer",
+                                           vertexBufferSize,
+                                           vk::BufferUsageFlagBits::eTransferDst |
+                                               vk::BufferUsageFlagBits::eShaderDeviceAddress,
+                                           VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                           VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+
+        ResourceAccessor<GPUBuffer> verticesAccessor = m_bufferManager->access(vertices);
 
         vertexBufferAddress =
-            m_device->get().getBufferAddress(vk::BufferDeviceAddressInfo().setBuffer(vertices));
+            m_device->get().getBufferAddress(vk::BufferDeviceAddressInfo().setBuffer(verticesAccessor));
 
-        cmdBuf->copyBuffer(vertexStaging, vertices, vk::BufferCopy().setSize(vertexBufferSize));
+        cmdBuf->copyBuffer(
+            vertexStagingAccessor, verticesAccessor, vk::BufferCopy().setSize(vertexBufferSize));
 
         if (indexBufferSize > 0)
         {
-            GPUBuffer indexStaging(*m_device,
-                                   *m_allocator,
-                                   "Index staging",
-                                   indexBufferSize,
-                                   vk::BufferUsageFlagBits::eTransferSrc,
-                                   VMA_MEMORY_USAGE_AUTO,
-                                   VMA_ALLOCATION_CREATE_MAPPED_BIT |
-                                       VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+            ResourceHandle indexStaging = m_bufferManager->create(
+                "Index staging",
+                indexBufferSize,
+                vk::BufferUsageFlagBits::eTransferSrc,
+                VMA_MEMORY_USAGE_AUTO,
+                VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
-            std::memcpy(indexStaging.getMappedData(), loaderInfo.indexBuffer, indexBufferSize);
+            ResourceAccessor<GPUBuffer> indexStagingAccessor = m_bufferManager->access(indexStaging);
 
-            indices = GPUBuffer(*m_device,
-                                *m_allocator,
-                                "Main index buffer",
-                                indexBufferSize,
-                                vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
-                                VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                                VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+            std::memcpy(indexStagingAccessor.getMappedData(), loaderInfo.indexBuffer, indexBufferSize);
 
-            cmdBuf->copyBuffer(indexStaging, indices, vk::BufferCopy().setSize(indexBufferSize));
+            indices = m_bufferManager->create("Main index buffer",
+                                              indexBufferSize,
+                                              vk::BufferUsageFlagBits::eTransferDst |
+                                                  vk::BufferUsageFlagBits::eIndexBuffer,
+                                              VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                              VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+
+            cmdBuf->copyBuffer(indexStagingAccessor,
+                               m_bufferManager->access(indices),
+                               vk::BufferCopy().setSize(indexBufferSize));
+
+            cmdBuf.flush();
+
+            m_bufferManager->destroy(indexStaging);
         }
-
-        cmdBuf.flush();
+        else
+        {
+            cmdBuf.flush();
+        }
 
         delete[] loaderInfo.vertexBuffer;
         delete[] loaderInfo.indexBuffer;
+
+        m_bufferManager->destroy(vertexStaging);
+        m_bufferManager->destroy(stagingPrimitiveDataBuffer);
+        m_bufferManager->destroy(stagingIndirectBuffer);
 
         getSceneDimensions();
 
@@ -2160,29 +2183,35 @@ namespace renderer::backend
 
         vk::DeviceSize bufferSize = shaderMaterials.size() * sizeof(ShaderMaterial);
 
-        GPUBuffer stagingBuffer(*m_allocator,
-                                bufferSize,
-                                vk::BufferUsageFlagBits::eTransferSrc,
-                                VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-                                    VMA_ALLOCATION_CREATE_MAPPED_BIT);
+        ResourceHandle stagingBuffer = m_bufferManager->create(
+            "Material staging buffer",
+            bufferSize,
+            vk::BufferUsageFlagBits::eTransferSrc,
+            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
-        std::memcpy(stagingBuffer.getMappedData(), shaderMaterials.data(), bufferSize);
+        ResourceAccessor<GPUBuffer> stagingBufferAccessor = m_bufferManager->access(stagingBuffer);
 
-        materialBuffer =
-            GPUBuffer(*m_allocator,
-                      bufferSize,
-                      vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferDst,
-                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                      VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+        std::memcpy(stagingBufferAccessor.getMappedData(), shaderMaterials.data(), bufferSize);
+
+        materialBuffer = m_bufferManager->create("Material buffer",
+                                                 bufferSize,
+                                                 vk::BufferUsageFlagBits::eShaderDeviceAddress |
+                                                     vk::BufferUsageFlagBits::eTransferDst,
+                                                 VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                                 VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+
+        ResourceAccessor<GPUBuffer> materialBufferAccessor = m_bufferManager->access(materialBuffer);
 
         materialBufferAddress =
-            m_device->get().getBufferAddress(vk::BufferDeviceAddressInfo().setBuffer(materialBuffer));
+            m_device->get().getBufferAddress(vk::BufferDeviceAddressInfo().setBuffer(materialBufferAccessor));
 
         // TODO(aether) the deconstructor will block until the copy is over
         // not the most performant approach
         ScopedCommandBuffer(*m_device, m_cmdManager->getTransferCmdPool(), m_device->getTransferQueue(), true)
-            ->copyBuffer(stagingBuffer, materialBuffer, vk::BufferCopy().setSize(bufferSize));
+            ->copyBuffer(stagingBufferAccessor, materialBufferAccessor, vk::BufferCopy().setSize(bufferSize));
+
+        m_bufferManager->destroy(stagingBuffer);
     }
 
     void Model::setupDescriptors()
