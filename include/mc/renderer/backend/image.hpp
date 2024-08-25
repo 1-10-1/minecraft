@@ -43,9 +43,6 @@ namespace renderer::backend
         {
             using std::swap;
 
-            // FIXME(aether) why is this my responsibility?
-            swap(first.m_handle, second.m_handle);
-
             swap(first.device, second.device);
             swap(first.allocator, second.allocator);
             swap(first.imageHandle, second.imageHandle);
@@ -59,11 +56,13 @@ namespace renderer::backend
             swap(first.imageView, second.imageView);
         }
 
-        Image(Image&& other) noexcept : Image() { swap(*this, other); };
+        Image(Image&& other) noexcept : ResourceBase(std::move(other)) { swap(*this, other); };
 
         Image& operator=(Image other) noexcept
         {
             swap(*this, other);
+
+            ResourceBase::operator=(std::move(other));
 
             return *this;
         }
@@ -94,14 +93,14 @@ namespace renderer::backend
         vk::raii::ImageView imageView { nullptr };
         VmaAllocation allocation { nullptr };
 
-        vk::Format format;
-        vk::SampleCountFlagBits sampleCount;
-        vk::ImageUsageFlags usageFlags;
-        vk::ImageAspectFlags aspectFlags;
+        vk::Format format {};
+        vk::SampleCountFlagBits sampleCount {};
+        vk::ImageUsageFlags usageFlags {};
+        vk::ImageAspectFlags aspectFlags {};
 
-        uint32_t mipLevels;
+        uint32_t mipLevels = 0;
 
-        vk::Extent2D dimensions;
+        vk::Extent2D dimensions { 0, 0 };
     };
 
     template<>

@@ -71,25 +71,11 @@ namespace renderer::backend
     public:
         ~Texture() = default;
 
-        friend void swap(Texture& first, Texture& second) noexcept
-        {
-            using std::swap;
+        Texture(Texture&&)            = default;
+        Texture& operator=(Texture&&) = default;
 
-            swap(first.m_handle, second.m_handle);
-
-            swap(first.mipLevels, second.mipLevels);
-            swap(first.image, second.image);
-            swap(first.path, second.path);
-        }
-
-        Texture(Texture&& other) noexcept : Texture() { swap(*this, other); };
-
-        Texture& operator=(Texture other) noexcept
-        {
-            swap(*this, other);
-
-            return *this;
-        }
+        Texture(Texture const&)            = delete;
+        Texture& operator=(Texture const&) = delete;
 
         std::string path = "<buffer>";
 
