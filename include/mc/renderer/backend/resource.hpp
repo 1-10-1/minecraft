@@ -10,11 +10,16 @@
 #include <vector>
 
 // TODO(aether) implement reference counting and copying ResourceAccessors
+// TODO(aether) maybe remove ResourceCreationResult entirely? Seems to be of no use
+// TODO(aether) Minimize copying ResourceHandles. They're not entirely cheap.
 
 namespace renderer::backend
 {
     class ResourceHandle
     {
+        template<typename T>
+        friend class ResourceManagerBase;
+
     public:
         ResourceHandle() = default;
         ResourceHandle(uint64_t index, uint64_t creationNumber, [[maybe_unused]] std::string const& name = {})
@@ -26,8 +31,7 @@ namespace renderer::backend
 #endif
               {};
 
-        ResourceHandle(ResourceHandle&& rhs) = default;
-
+        ResourceHandle(ResourceHandle&&)            = default;
         ResourceHandle& operator=(ResourceHandle&&) = default;
 
         ResourceHandle(ResourceHandle const&)            = default;
@@ -36,13 +40,6 @@ namespace renderer::backend
         bool operator==(ResourceHandle const& rhs) const { return m_creationNumber == rhs.m_creationNumber; }
 
         bool hasInitialized() const { return m_creationNumber != invalidCreationNumber; };
-
-        uint64_t getIndex() const
-        {
-            MC_ASSERT_MSG(this->hasInitialized(), "Attempted to access an uninitialized handle");
-
-            return m_index;
-        }
 
         operator uint64_t() const { return this->getIndex(); }
 
@@ -60,6 +57,13 @@ namespace renderer::backend
         static constexpr uint64_t invalidCreationNumber = std::numeric_limits<uint64_t>::max();
 
     private:
+        uint64_t getIndex() const
+        {
+            MC_ASSERT_MSG(this->hasInitialized(), "Attempted to access an uninitialized handle");
+
+            return m_index;
+        }
+
         uint64_t m_index          = 0;
         uint64_t m_creationNumber = invalidCreationNumber;
 

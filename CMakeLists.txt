@@ -133,7 +133,7 @@ else()
         -Wno-format -Wno-switch
         -Wno-deprecated-declarations -march=native -flto=auto
         -Wno-sign-compare -pthread
-        $<$<CONFIG:Release>:-fno-exceptions -ffast-math -finline-functions>
+        $<$<CONFIG:Release>:-fno-exceptions -g -ffast-math -finline-functions>
         $<$<CONFIG:Debug>:-mtune=native -g>) # -fsanitize=address -g -fno-omit-frame-pointer>)
 endif()
 
