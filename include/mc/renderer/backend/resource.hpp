@@ -246,9 +246,8 @@ namespace renderer::backend
         ResourceManagerBase& operator=(ResourceManagerBase&&) = default;
 
         template<typename Self, typename... Args>
-        auto createScoped(this Self&& self,
-                          std::string const& name,
-                          Args&&... args) -> ResourceCreationResult<Resource>
+        auto
+        create(this Self&& self, std::string const& name, Args&&... args) -> ResourceCreationResult<Resource>
         {
             if (size_t dormResources = self.m_dormantIndices.size(); dormResources > 100)
             {

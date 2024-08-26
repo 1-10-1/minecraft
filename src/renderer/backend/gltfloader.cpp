@@ -197,12 +197,12 @@ namespace renderer::backend
             }
 
             auto stagingBuffer = bufferManager
-                                     .createScoped("Image staging buffer (compressed)",
-                                                   totalBufferSize,
-                                                   vk::BufferUsageFlagBits::eTransferSrc,
-                                                   VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                                   VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-                                                       VMA_ALLOCATION_CREATE_MAPPED_BIT)
+                                     .create("Image staging buffer (compressed)",
+                                             totalBufferSize,
+                                             vk::BufferUsageFlagBits::eTransferSrc,
+                                             VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                             VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                                                 VMA_ALLOCATION_CREATE_MAPPED_BIT)
                                      .access();
 
             unsigned char* buffer    = new unsigned char[totalBufferSize];
@@ -232,9 +232,8 @@ namespace renderer::backend
 
             // FIXME(aether) stop using imageManager here
             // differ all this processing to the Texture class
-            texture =
-                imageManager
-                    .createScoped(std::format("Compressed gltf texture ({})", gltfimage.uri),
+            texture = imageManager
+                          .create(std::format("Compressed gltf texture ({})", gltfimage.uri),
                                   vk::Extent2D { width, height },
                                   format,
                                   vk::SampleCountFlagBits::e1,
@@ -242,7 +241,7 @@ namespace renderer::backend
                                       vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
                                   vk::ImageAspectFlagBits::eColor,
                                   mipLevels)
-                    .access();
+                          .access();
 
             ScopedCommandBuffer copyCmd(
                 device, cmdManager.getTransferCmdPool(), device.getTransferQueue(), true);
@@ -359,13 +358,13 @@ namespace renderer::backend
 
             auto stagingBuffer =
                 bufferManager
-                    .createScoped("Image staging buffer (uncompressed)",
-                                  bufferSize,
-                                  vk::BufferUsageFlagBits::eTransferSrc,
-                                  VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                  VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-                                      // TODO(aether) maybe unmap it asap if thats gonna be benefitial
-                                      VMA_ALLOCATION_CREATE_MAPPED_BIT)
+                    .create("Image staging buffer (uncompressed)",
+                            bufferSize,
+                            vk::BufferUsageFlagBits::eTransferSrc,
+                            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                                // TODO(aether) maybe unmap it asap if thats gonna be benefitial
+                                VMA_ALLOCATION_CREATE_MAPPED_BIT)
                     .access();
 
             uint8_t* data = reinterpret_cast<uint8_t*>(stagingBuffer.getMappedData());
@@ -376,9 +375,8 @@ namespace renderer::backend
                 delete[] buffer;
             }
 
-            texture =
-                imageManager
-                    .createScoped(std::format("Uncompressed gltf texture ({})", gltfimage.uri),
+            texture = imageManager
+                          .create(std::format("Uncompressed gltf texture ({})", gltfimage.uri),
                                   vk::Extent2D { width, height },
                                   format,
                                   vk::SampleCountFlagBits::e1,
@@ -386,7 +384,7 @@ namespace renderer::backend
                                       vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
                                   vk::ImageAspectFlagBits::eColor,
                                   mipLevels)
-                    .access();
+                          .access();
 
             ScopedCommandBuffer cmdBuf(device, cmdManager.getMainCmdPool(), device.getMainQueue(), true);
 
@@ -596,12 +594,12 @@ namespace renderer::backend
         // resides in a device local + host visible memory, and if not, make sure we flush any writes and
         // also copy the staging buffer to the device local one.
         uniformBuffer.buffer = bufferManager
-                                   .createScoped("Uniform buffer",
-                                                 sizeof(uniformBlock),
-                                                 vk::BufferUsageFlagBits::eUniformBuffer,
-                                                 VMA_MEMORY_USAGE_AUTO,
-                                                 VMA_ALLOCATION_CREATE_MAPPED_BIT |
-                                                     VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+                                   .create("Uniform buffer",
+                                           sizeof(uniformBlock),
+                                           vk::BufferUsageFlagBits::eUniformBuffer,
+                                           VMA_MEMORY_USAGE_AUTO,
+                                           VMA_ALLOCATION_CREATE_MAPPED_BIT |
+                                               VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
                                    .access();
 
         uniformBuffer.mapped = uniformBuffer.buffer.getMappedData();
@@ -1790,22 +1788,22 @@ namespace renderer::backend
         // TODO(aether) this is getting trivial
         auto stagingIndirectBuffer =
             m_bufferManager
-                ->createScoped(
-                    "Draw indirect buffer (staging)",
-                    drawIndirectCommands.size() * sizeof(decltype(drawIndirectCommands)::value_type),
-                    vk::BufferUsageFlagBits::eTransferSrc,
-                    VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                    VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT)
+                ->create("Draw indirect buffer (staging)",
+                         drawIndirectCommands.size() * sizeof(decltype(drawIndirectCommands)::value_type),
+                         vk::BufferUsageFlagBits::eTransferSrc,
+                         VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                             VMA_ALLOCATION_CREATE_MAPPED_BIT)
                 .access();
 
         auto stagingPrimitiveBuffer =
             m_bufferManager
-                ->createScoped("Primitive data buffer (staging)",
-                               primitiveData.size() * sizeof(decltype(primitiveData)::value_type),
-                               vk::BufferUsageFlagBits::eTransferSrc,
-                               VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                               VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-                                   VMA_ALLOCATION_CREATE_MAPPED_BIT)
+                ->create("Primitive data buffer (staging)",
+                         primitiveData.size() * sizeof(decltype(primitiveData)::value_type),
+                         vk::BufferUsageFlagBits::eTransferSrc,
+                         VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                             VMA_ALLOCATION_CREATE_MAPPED_BIT)
                 .access();
 
         std::memcpy(stagingIndirectBuffer.getMappedData(),
@@ -1817,23 +1815,21 @@ namespace renderer::backend
 
         drawIndirectBuffer =
             m_bufferManager
-                ->createScoped(
-                    "Draw indirect buffer",
-                    drawIndirectCommands.size() * sizeof(decltype(drawIndirectCommands)::value_type),
-                    vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndirectBuffer,
-                    VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                    VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+                ->create("Draw indirect buffer",
+                         drawIndirectCommands.size() * sizeof(decltype(drawIndirectCommands)::value_type),
+                         vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndirectBuffer,
+                         VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                         VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
                 .access();
 
-        primitiveDataBuffer =
-            m_bufferManager
-                ->createScoped("Primitive data buffer",
-                               primitiveData.size() * sizeof(decltype(primitiveData)::value_type),
-                               vk::BufferUsageFlagBits::eTransferDst |
-                                   vk::BufferUsageFlagBits::eShaderDeviceAddress,
-                               VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                               VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-                .access();
+        primitiveDataBuffer = m_bufferManager
+                                  ->create("Primitive data buffer",
+                                           primitiveData.size() * sizeof(decltype(primitiveData)::value_type),
+                                           vk::BufferUsageFlagBits::eTransferDst |
+                                               vk::BufferUsageFlagBits::eShaderDeviceAddress,
+                                           VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                           VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+                                  .access();
 
         cmdBuf->copyBuffer(stagingIndirectBuffer,
                            drawIndirectBuffer,
@@ -1853,23 +1849,23 @@ namespace renderer::backend
         MC_ASSERT(vertexBufferSize > 0);
 
         auto vertexStaging = m_bufferManager
-                                 ->createScoped("Vertex staging",
-                                                vertexBufferSize,
-                                                vk::BufferUsageFlagBits::eTransferSrc,
-                                                VMA_MEMORY_USAGE_AUTO,
-                                                VMA_ALLOCATION_CREATE_MAPPED_BIT |
-                                                    VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+                                 ->create("Vertex staging",
+                                          vertexBufferSize,
+                                          vk::BufferUsageFlagBits::eTransferSrc,
+                                          VMA_MEMORY_USAGE_AUTO,
+                                          VMA_ALLOCATION_CREATE_MAPPED_BIT |
+                                              VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
                                  .access();
 
         std::memcpy(vertexStaging.getMappedData(), loaderInfo.vertexBuffer, vertexBufferSize);
 
         vertices = m_bufferManager
-                       ->createScoped("Main vertex buffer",
-                                      vertexBufferSize,
-                                      vk::BufferUsageFlagBits::eTransferDst |
-                                          vk::BufferUsageFlagBits::eShaderDeviceAddress,
-                                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                                      VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+                       ->create("Main vertex buffer",
+                                vertexBufferSize,
+                                vk::BufferUsageFlagBits::eTransferDst |
+                                    vk::BufferUsageFlagBits::eShaderDeviceAddress,
+                                VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
                        .access();
 
         vertexBufferAddress =
@@ -1880,24 +1876,24 @@ namespace renderer::backend
         if (indexBufferSize > 0)
         {
             auto indexStaging = m_bufferManager
-                                    ->createScoped("Index staging",
-                                                   indexBufferSize,
-                                                   vk::BufferUsageFlagBits::eTransferSrc,
-                                                   VMA_MEMORY_USAGE_AUTO,
-                                                   VMA_ALLOCATION_CREATE_MAPPED_BIT |
-                                                       VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+                                    ->create("Index staging",
+                                             indexBufferSize,
+                                             vk::BufferUsageFlagBits::eTransferSrc,
+                                             VMA_MEMORY_USAGE_AUTO,
+                                             VMA_ALLOCATION_CREATE_MAPPED_BIT |
+                                                 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
                                     .access();
 
             std::memcpy(indexStaging.getMappedData(), loaderInfo.indexBuffer, indexBufferSize);
 
-            indices = m_bufferManager
-                          ->createScoped("Main index buffer",
-                                         indexBufferSize,
-                                         vk::BufferUsageFlagBits::eTransferDst |
-                                             vk::BufferUsageFlagBits::eIndexBuffer,
-                                         VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                                         VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-                          .access();
+            indices =
+                m_bufferManager
+                    ->create("Main index buffer",
+                             indexBufferSize,
+                             vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
+                             VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                             VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+                    .access();
 
             cmdBuf->copyBuffer(indexStaging, indices, vk::BufferCopy().setSize(indexBufferSize));
 
@@ -2163,25 +2159,24 @@ namespace renderer::backend
 
         vk::DeviceSize bufferSize = shaderMaterials.size() * sizeof(ShaderMaterial);
 
-        auto stagingBufferAccessor =
-            m_bufferManager
-                ->createScoped("Material staging buffer",
-                               bufferSize,
-                               vk::BufferUsageFlagBits::eTransferSrc,
-                               VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                               VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-                                   VMA_ALLOCATION_CREATE_MAPPED_BIT)
-                .access();
+        auto stagingBufferAccessor = m_bufferManager
+                                         ->create("Material staging buffer",
+                                                  bufferSize,
+                                                  vk::BufferUsageFlagBits::eTransferSrc,
+                                                  VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                                  VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                                                      VMA_ALLOCATION_CREATE_MAPPED_BIT)
+                                         .access();
 
         std::memcpy(stagingBufferAccessor.getMappedData(), shaderMaterials.data(), bufferSize);
 
         materialBuffer = m_bufferManager
-                             ->createScoped("Material buffer",
-                                            bufferSize,
-                                            vk::BufferUsageFlagBits::eShaderDeviceAddress |
-                                                vk::BufferUsageFlagBits::eTransferDst,
-                                            VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                                            VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+                             ->create("Material buffer",
+                                      bufferSize,
+                                      vk::BufferUsageFlagBits::eShaderDeviceAddress |
+                                          vk::BufferUsageFlagBits::eTransferDst,
+                                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                      VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
                              .access();
 
         materialBufferAddress =
