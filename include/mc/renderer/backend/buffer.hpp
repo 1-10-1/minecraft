@@ -43,6 +43,17 @@ namespace renderer::backend
             swap(first.allocation, second.allocation);
         }
 
+        GPUBuffer(GPUBuffer&& other) noexcept : ResourceBase(std::move(other)) { swap(*this, other); };
+
+        GPUBuffer& operator=(GPUBuffer other) noexcept
+        {
+            swap(*this, other);
+
+            ResourceBase::operator=(std::move(*this));
+
+            return *this;
+        }
+
         void setName(std::string_view name)
         {
 #if DEBUG
@@ -62,17 +73,6 @@ namespace renderer::backend
 #endif
         }
 
-        GPUBuffer(GPUBuffer&& other) noexcept : ResourceBase(std::move(other)) { swap(*this, other); };
-
-        GPUBuffer& operator=(GPUBuffer other) noexcept
-        {
-            swap(*this, other);
-
-            ResourceBase::operator=(std::move(other));
-
-            return *this;
-        }
-
         Device* device { nullptr };
         Allocator* allocator { nullptr };
 
@@ -82,11 +82,19 @@ namespace renderer::backend
     };
 
     template<>
-    class ResourceAccessor<GPUBuffer> final : ResourceAccessorBase<GPUBuffer>
+    class ResourceAccessor<GPUBuffer> : public ResourceAccessorBase<GPUBuffer>
     {
     public:
         ResourceAccessor(ResourceManager<GPUBuffer>& manager, ResourceHandle handle)
             : ResourceAccessorBase<GPUBuffer> { manager, handle } {};
+
+        virtual ~ResourceAccessor() = default;
+
+        ResourceAccessor(ResourceAccessor&&)            = default;
+        ResourceAccessor& operator=(ResourceAccessor&&) = default;
+
+        ResourceAccessor(ResourceAccessor const&)            = delete;
+        ResourceAccessor& operator=(ResourceAccessor const&) = delete;
 
         [[nodiscard]] operator bool() const { return get().vulkanHandle; }
 
@@ -132,5 +140,11 @@ namespace renderer::backend
     public:
         ResourceManager(Device& device, Allocator& allocator)
             : m_extraConstructionParams { std::tie(device, allocator) } {};
+
+        ResourceManager(ResourceManager&&)            = default;
+        ResourceManager& operator=(ResourceManager&&) = delete;
+
+        ResourceManager(ResourceManager const&)            = delete;
+        ResourceManager& operator=(ResourceManager const&) = delete;
     };
 }  // namespace renderer::backend

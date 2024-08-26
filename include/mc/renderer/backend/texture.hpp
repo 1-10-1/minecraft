@@ -86,11 +86,19 @@ namespace renderer::backend
     };
 
     template<>
-    class ResourceAccessor<Texture> final : ResourceAccessorBase<Texture>
+    class ResourceAccessor<Texture> : public ResourceAccessorBase<Texture>
     {
     public:
         ResourceAccessor(ResourceManager<Texture>& manager, ResourceHandle handle)
             : ResourceAccessorBase<Texture> { manager, handle } {};
+
+        virtual ~ResourceAccessor() = default;
+
+        ResourceAccessor(ResourceAccessor&&)            = default;
+        ResourceAccessor& operator=(ResourceAccessor&&) = default;
+
+        ResourceAccessor(ResourceAccessor const&)            = delete;
+        ResourceAccessor& operator=(ResourceAccessor const&) = delete;
 
         [[nodiscard]] auto getPath() const -> std::string const& { return get().path; }
 
@@ -104,11 +112,14 @@ namespace renderer::backend
     };
 
     template<>
-    class ResourceManager<Texture> final : public ResourceManagerBase<Texture>
+    class ResourceManager<Texture> : public ResourceManagerBase<Texture>
     {
         friend class ResourceManagerBase<Texture>;
 
-        std::tuple<Device&, CommandManager&, ResourceManager<Image>&, ResourceManager<GPUBuffer>&>
+        std::tuple<std::reference_wrapper<Device>,
+                   std::reference_wrapper<CommandManager>,
+                   std::reference_wrapper<ResourceManager<Image>>,
+                   std::reference_wrapper<ResourceManager<GPUBuffer>>>
             m_extraConstructionParams;
 
     public:
@@ -116,6 +127,12 @@ namespace renderer::backend
                         CommandManager& commandManager,
                         ResourceManager<Image>& imageManager,
                         ResourceManager<GPUBuffer>& bufferManager)
-            : m_extraConstructionParams { device, commandManager, imageManager, bufferManager } {};
+            : m_extraConstructionParams { std::tie(device, commandManager, imageManager, bufferManager) } {};
+
+        ResourceManager(ResourceManager&&)            = default;
+        ResourceManager& operator=(ResourceManager&&) = default;
+
+        ResourceManager(ResourceManager const&)            = delete;
+        ResourceManager& operator=(ResourceManager const&) = delete;
     };
 }  // namespace renderer::backend

@@ -62,7 +62,7 @@ namespace renderer::backend
         {
             swap(*this, other);
 
-            ResourceBase::operator=(std::move(other));
+            ResourceBase::operator=(std::move(*this));
 
             return *this;
         }
@@ -104,11 +104,19 @@ namespace renderer::backend
     };
 
     template<>
-    class ResourceAccessor<Image> final : ResourceAccessorBase<Image>
+    class ResourceAccessor<Image> : public ResourceAccessorBase<Image>
     {
     public:
         ResourceAccessor(ResourceManager<Image>& manager, ResourceHandle handle)
             : ResourceAccessorBase<Image> { manager, handle } {};
+
+        virtual ~ResourceAccessor() = default;
+
+        ResourceAccessor(ResourceAccessor&&)            = default;
+        ResourceAccessor& operator=(ResourceAccessor&&) = delete;
+
+        ResourceAccessor(ResourceAccessor const&)            = delete;
+        ResourceAccessor& operator=(ResourceAccessor const&) = delete;
 
         [[nodiscard]] operator bool() const { return get().imageHandle; }
 
@@ -161,10 +169,17 @@ namespace renderer::backend
     {
         friend class ResourceManagerBase<Image>;
 
-        std::tuple<Device&, Allocator&> m_extraConstructionParams;
+        std::tuple<std::reference_wrapper<Device>, std::reference_wrapper<Allocator>>
+            m_extraConstructionParams;
 
     public:
         ResourceManager(Device& device, Allocator& allocator)
             : m_extraConstructionParams { std::tie(device, allocator) } {};
+
+        ResourceManager(ResourceManager&&)            = default;
+        ResourceManager& operator=(ResourceManager&&) = default;
+
+        ResourceManager(ResourceManager const&)            = delete;
+        ResourceManager& operator=(ResourceManager const&) = delete;
     };
 }  // namespace renderer::backend
