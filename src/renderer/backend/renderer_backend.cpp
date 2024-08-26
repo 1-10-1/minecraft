@@ -61,37 +61,36 @@ namespace renderer::backend
 
           m_textures { m_device, m_commandManager, m_images, m_buffers }
     {
-        auto drawImageAccessor = m_images
-                                     .create("draw image",
-                                             m_surface.getFramebufferExtent(),
-                                             vk::Format::eR16G16B16A16Sfloat,
-                                             m_device.getMaxUsableSampleCount(),
-                                             vk::ImageUsageFlagBits::eTransferSrc |
-                                                 vk::ImageUsageFlagBits::eTransferDst |  // maybe remove?
-                                                 vk::ImageUsageFlagBits::eColorAttachment,
-                                             vk::ImageAspectFlagBits::eColor)
-                                     .assignHandleTo(m_drawImage)
-                                     .access();
+        m_drawImage = m_images
+                          .createScoped("draw image",
+                                        m_surface.getFramebufferExtent(),
+                                        vk::Format::eR16G16B16A16Sfloat,
+                                        m_device.getMaxUsableSampleCount(),
+                                        vk::ImageUsageFlagBits::eTransferSrc |
+                                            vk::ImageUsageFlagBits::eTransferDst |  // maybe remove?
+                                            vk::ImageUsageFlagBits::eColorAttachment,
+                                        vk::ImageAspectFlagBits::eColor)
+                          .access();
 
-        m_images
-            .create("draw image resolve",
-                    drawImageAccessor.getDimensions(),
-                    drawImageAccessor.getFormat(),
-                    vk::SampleCountFlagBits::e1,
-                    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc |
-                        vk::ImageUsageFlagBits::eTransferDst,
-                    vk::ImageAspectFlagBits::eColor)
-            .assignHandleTo(m_drawImageResolve);
+        m_drawImageResolve =
+            m_images
+                .createScoped("draw image resolve",
+                              m_drawImage.getDimensions(),
+                              m_drawImage.getFormat(),
+                              vk::SampleCountFlagBits::e1,
+                              vk::ImageUsageFlagBits::eColorAttachment |
+                                  vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst,
+                              vk::ImageAspectFlagBits::eColor)
+                .access();
 
-        auto depthImageAccessor = m_images
-                                      .create("depth image",
-                                              drawImageAccessor.getDimensions(),
-                                              kDepthStencilFormat,
-                                              m_device.getMaxUsableSampleCount(),
-                                              vk::ImageUsageFlagBits::eDepthStencilAttachment,
-                                              vk::ImageAspectFlagBits::eDepth)
-                                      .assignHandleTo(m_depthImage)
-                                      .access();
+        m_depthImage = m_images
+                           .createScoped("depth image",
+                                         m_drawImage.getDimensions(),
+                                         kDepthStencilFormat,
+                                         m_device.getMaxUsableSampleCount(),
+                                         vk::ImageUsageFlagBits::eDepthStencilAttachment,
+                                         vk::ImageAspectFlagBits::eDepth)
+                           .access();
         // enki::TaskScheduler task_scheduler;
 
         // task_scheduler.Initialize({ .numTaskThreadsToCreate = 4 });
@@ -132,19 +131,22 @@ namespace renderer::backend
                 }
             }
 
-            m_textures
-                .create(
-                    "dummy texture", vk::Extent2D { 32, 32 }, pixels.data(), sizeof(float) * pixels.size())
-                .assignHandleTo(m_dummyTexture);
+            m_dummyTexture = m_textures
+                                 .createScoped("dummy texture",
+                                               vk::Extent2D { 32, 32 },
+                                               pixels.data(),
+                                               sizeof(float) * pixels.size())
+                                 .access();
         }
 
-        m_buffers
-            .create("GPU Scene Data",
-                    sizeof(GPUSceneData),
-                    vk::BufferUsageFlagBits::eUniformBuffer,
-                    VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                    VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
-            .assignHandleTo(m_gpuSceneDataBuffer);
+        m_gpuSceneDataBuffer = m_buffers
+                                   .createScoped("GPU Scene Data",
+                                                 sizeof(GPUSceneData),
+                                                 vk::BufferUsageFlagBits::eUniformBuffer,
+                                                 VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                                 VMA_ALLOCATION_CREATE_MAPPED_BIT |
+                                                     VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+                                   .access();
 
         ShaderManager shaders(m_device);
         shaders.addShader("fs.frag").addShader("vs.vert");
@@ -174,7 +176,7 @@ namespace renderer::backend
             auto pipelineConfig =
                 GraphicsPipelineConfig()
                     .setShaderManager(shaders)
-                    .setColorAttachmentFormat(m_images.access(m_drawImage).getFormat())
+                    .setColorAttachmentFormat(m_drawImage.getFormat())
                     .setDepthAttachmentFormat(kDepthStencilFormat)
                     .setDepthStencilSettings(true, vk::CompareOp::eGreaterOrEqual)
                     // .setCullingSettings(vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise)
@@ -240,7 +242,7 @@ namespace renderer::backend
                         m_images,
                         m_buffers,
                         m_textureArrayDescriptorLayout,
-                        m_images.access(m_textures.access(m_dummyTexture).getImage()).getImageView(),
+                        m_dummyTexture.getImage().getImageView(),
                         m_dummySampler);
 
         auto glTFFile =
@@ -304,11 +306,8 @@ namespace renderer::backend
 
         DescriptorWriter writer;
 
-        writer.writeBuffer(0,
-                           m_buffers.access(m_gpuSceneDataBuffer),
-                           sizeof(GPUSceneData),
-                           0,
-                           vk::DescriptorType::eUniformBuffer);
+        writer.writeBuffer(
+            0, m_gpuSceneDataBuffer, sizeof(GPUSceneData), 0, vk::DescriptorType::eUniformBuffer);
         writer.updateSet(m_device, m_sceneDataDescriptors);
 
         m_textureArrayDescriptorLayout =
@@ -359,20 +358,19 @@ namespace renderer::backend
                                    ImGuiColorEditFlags_PickerHueBar);
 
         ImGui_ImplVulkan_InitInfo initInfo {
-            .Instance            = *m_instance.get(),
-            .PhysicalDevice      = *m_device.getPhysical(),
-            .Device              = *m_device.get(),
-            .QueueFamily         = m_device.getQueueFamilyIndices().mainFamily,
-            .Queue               = *m_device.getMainQueue(),
-            .DescriptorPool      = *m_imGuiPool,
-            .MinImageCount       = kNumFramesInFlight,
-            .ImageCount          = utils::size(m_swapchain.getImageViews()),
-            .MSAASamples         = VK_SAMPLE_COUNT_1_BIT,
-            .UseDynamicRendering = true,
-            .PipelineRenderingCreateInfo =
-                vk::PipelineRenderingCreateInfo()
-                    .setColorAttachmentFormats(m_surface.getDetails().format)
-                    .setDepthAttachmentFormat(m_images.access(m_depthImage).getFormat()),
+            .Instance                    = *m_instance.get(),
+            .PhysicalDevice              = *m_device.getPhysical(),
+            .Device                      = *m_device.get(),
+            .QueueFamily                 = m_device.getQueueFamilyIndices().mainFamily,
+            .Queue                       = *m_device.getMainQueue(),
+            .DescriptorPool              = *m_imGuiPool,
+            .MinImageCount               = kNumFramesInFlight,
+            .ImageCount                  = utils::size(m_swapchain.getImageViews()),
+            .MSAASamples                 = VK_SAMPLE_COUNT_1_BIT,
+            .UseDynamicRendering         = true,
+            .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo()
+                                               .setColorAttachmentFormats(m_surface.getDetails().format)
+                                               .setDepthAttachmentFormat(m_depthImage.getFormat()),
             .CheckVkResultFn = kDebug ? reinterpret_cast<void (*)(VkResult)>(&imguiCheckerFn) : nullptr,
         };
 
@@ -440,9 +438,9 @@ namespace renderer::backend
 
         m_swapchain = Swapchain(m_device, m_surface);
 
-        m_images.access(m_drawImage).resize(m_surface.getFramebufferExtent());
-        m_images.access(m_drawImageResolve).resize(m_surface.getFramebufferExtent());
-        m_images.access(m_depthImage).resize(m_surface.getFramebufferExtent());
+        m_drawImage.resize(m_surface.getFramebufferExtent());
+        m_drawImageResolve.resize(m_surface.getFramebufferExtent());
+        m_depthImage.resize(m_surface.getFramebufferExtent());
     }
 
     void RendererBackend::updateDescriptors(glm::vec3 cameraPos,
@@ -450,8 +448,7 @@ namespace renderer::backend
                                             glm::mat4 view,
                                             glm::mat4 projection)
     {
-        auto& sceneUniformData =
-            *static_cast<GPUSceneData*>(m_buffers.access(m_gpuSceneDataBuffer).getMappedData());
+        auto& sceneUniformData = *static_cast<GPUSceneData*>(m_gpuSceneDataBuffer.getMappedData());
 
         sceneUniformData = GPUSceneData {
             .view              = view,
@@ -459,9 +456,9 @@ namespace renderer::backend
             .viewproj          = projection * view,
             .ambientColor      = glm::vec4(.1f),
             .cameraPos         = cameraPos,
-            .screenWeight      = static_cast<float>(m_images.access(m_drawImage).getDimensions().width),
+            .screenWeight      = static_cast<float>(m_drawImage.getDimensions().width),
             .sunlightDirection = glm::vec3 { -0.2f, -1.0f, -0.3f },
-            .screenHeight      = static_cast<float>(m_images.access(m_drawImage).getDimensions().height),
+            .screenHeight      = static_cast<float>(m_drawImage.getDimensions().height),
         };
     }
 

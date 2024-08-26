@@ -212,7 +212,7 @@ namespace renderer::backend
         ResourceManager<Image> m_images;
         ResourceManager<Texture> m_textures;
 
-        ResourceHandle m_drawImage, m_drawImageResolve, m_depthImage;
+        ResourceAccessor<Image> m_drawImage {}, m_drawImageResolve {}, m_depthImage {};
         vk::DescriptorSet m_sceneDataDescriptors { nullptr };
         vk::raii::DescriptorSetLayout m_sceneDataDescriptorLayout { nullptr },
             m_textureArrayDescriptorLayout { nullptr };
@@ -222,14 +222,14 @@ namespace renderer::backend
         PipelineLayout m_pipelineLayout;
         GraphicsPipeline m_pipeline;
 
-        ResourceHandle m_gpuSceneDataBuffer;
+        ResourceAccessor<GPUBuffer> m_gpuSceneDataBuffer {};
 
         Model m_scene {};
 
         std::array<FrameResources, kNumFramesInFlight> m_frameResources {};
 
         vk::raii::Sampler m_dummySampler { nullptr };
-        ResourceHandle m_dummyTexture {};
+        ResourceAccessor<Texture> m_dummyTexture {};
 
         Timer m_timer;
 

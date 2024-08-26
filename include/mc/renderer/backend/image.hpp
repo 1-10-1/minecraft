@@ -104,16 +104,18 @@ namespace renderer::backend
     };
 
     template<>
-    class ResourceAccessor<Image> : public ResourceAccessorBase<Image>
+    class ResourceAccessor<Image> final : public ResourceAccessorBase<Image>
     {
     public:
+        ResourceAccessor() = default;
+
         ResourceAccessor(ResourceManager<Image>& manager, ResourceHandle handle)
             : ResourceAccessorBase<Image> { manager, handle } {};
 
-        virtual ~ResourceAccessor() = default;
+        ~ResourceAccessor() = default;
 
         ResourceAccessor(ResourceAccessor&&)            = default;
-        ResourceAccessor& operator=(ResourceAccessor&&) = delete;
+        ResourceAccessor& operator=(ResourceAccessor&&) = default;
 
         ResourceAccessor(ResourceAccessor const&)            = delete;
         ResourceAccessor& operator=(ResourceAccessor const&) = delete;

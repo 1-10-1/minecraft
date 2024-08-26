@@ -232,17 +232,16 @@ namespace renderer::backend
 
             // FIXME(aether) stop using imageManager here
             // differ all this processing to the Texture class
-            auto image =
+            texture =
                 imageManager
-                    .create(std::format("Compressed gltf texture ({})", gltfimage.uri),
-                            vk::Extent2D { width, height },
-                            format,
-                            vk::SampleCountFlagBits::e1,
-                            vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst |
-                                vk::ImageUsageFlagBits::eSampled,
-                            vk::ImageAspectFlagBits::eColor,
-                            mipLevels)
-                    .assignHandleTo(texture)
+                    .createScoped(std::format("Compressed gltf texture ({})", gltfimage.uri),
+                                  vk::Extent2D { width, height },
+                                  format,
+                                  vk::SampleCountFlagBits::e1,
+                                  vk::ImageUsageFlagBits::eTransferSrc |
+                                      vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+                                  vk::ImageAspectFlagBits::eColor,
+                                  mipLevels)
                     .access();
 
             ScopedCommandBuffer copyCmd(
@@ -259,7 +258,7 @@ namespace renderer::backend
                 .dstAccessMask    = vk::AccessFlagBits::eTransferWrite,
                 .oldLayout        = vk::ImageLayout::eUndefined,
                 .newLayout        = vk::ImageLayout::eTransferDstOptimal,
-                .image            = image,
+                .image            = texture,
                 .subresourceRange = subresourceRange,
             };
 
@@ -297,7 +296,7 @@ namespace renderer::backend
                 };
 
                 copyCmd->copyBufferToImage(
-                    stagingBuffer, image, vk::ImageLayout::eTransferDstOptimal, { bufferCopyRegion });
+                    stagingBuffer, texture, vk::ImageLayout::eTransferDstOptimal, { bufferCopyRegion });
 
                 bufferOffset += outputSize;
             }
@@ -306,7 +305,7 @@ namespace renderer::backend
             imageMemoryBarrier.newLayout        = vk::ImageLayout::eShaderReadOnlyOptimal;
             imageMemoryBarrier.srcAccessMask    = vk::AccessFlagBits::eTransferWrite;
             imageMemoryBarrier.dstAccessMask    = vk::AccessFlagBits::eShaderRead;
-            imageMemoryBarrier.image            = image;
+            imageMemoryBarrier.image            = texture;
             imageMemoryBarrier.subresourceRange = subresourceRange;
 
             copyCmd->pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands,
@@ -377,17 +376,16 @@ namespace renderer::backend
                 delete[] buffer;
             }
 
-            auto image =
+            texture =
                 imageManager
-                    .create(std::format("Uncompressed gltf texture ({})", gltfimage.uri),
-                            vk::Extent2D { width, height },
-                            format,
-                            vk::SampleCountFlagBits::e1,
-                            vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst |
-                                vk::ImageUsageFlagBits::eSampled,
-                            vk::ImageAspectFlagBits::eColor,
-                            mipLevels)
-                    .assignHandleTo(texture)
+                    .createScoped(std::format("Uncompressed gltf texture ({})", gltfimage.uri),
+                                  vk::Extent2D { width, height },
+                                  format,
+                                  vk::SampleCountFlagBits::e1,
+                                  vk::ImageUsageFlagBits::eTransferSrc |
+                                      vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+                                  vk::ImageAspectFlagBits::eColor,
+                                  mipLevels)
                     .access();
 
             ScopedCommandBuffer cmdBuf(device, cmdManager.getMainCmdPool(), device.getMainQueue(), true);
@@ -404,7 +402,7 @@ namespace renderer::backend
                     .dstAccessMask    = vk::AccessFlagBits::eTransferWrite,
                     .oldLayout        = vk::ImageLayout::eUndefined,
                     .newLayout        = vk::ImageLayout::eTransferDstOptimal,
-                    .image            = image,
+                    .image            = texture,
                     .subresourceRange = subresourceRange,
                 };
 
@@ -433,7 +431,7 @@ namespace renderer::backend
             // clang-format on
 
             cmdBuf->copyBufferToImage(
-                stagingBuffer, image, vk::ImageLayout::eTransferDstOptimal, { bufferCopyRegion });
+                stagingBuffer, texture, vk::ImageLayout::eTransferDstOptimal, { bufferCopyRegion });
 
             cmdBuf->pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands,
                                     vk::PipelineStageFlagBits::eAllCommands,
@@ -446,7 +444,7 @@ namespace renderer::backend
                                         .dstAccessMask    = vk::AccessFlagBits::eTransferRead,
                                         .oldLayout        = vk::ImageLayout::eTransferDstOptimal,
                                         .newLayout        = vk::ImageLayout::eTransferSrcOptimal,
-                                        .image            = image,
+                                        .image            = texture,
                                         .subresourceRange = subresourceRange,
                                     } });
 
@@ -504,13 +502,13 @@ namespace renderer::backend
                                             .dstAccessMask    = vk::AccessFlagBits::eTransferWrite,
                                             .oldLayout        = vk::ImageLayout::eUndefined,
                                             .newLayout        = vk::ImageLayout::eTransferDstOptimal,
-                                            .image            = image,
+                                            .image            = texture,
                                             .subresourceRange = mipSubRange,
                                         } });
 
-                cmdBuf->blitImage(image,
+                cmdBuf->blitImage(texture,
                                   vk::ImageLayout::eTransferSrcOptimal,
-                                  image,
+                                  texture,
                                   vk::ImageLayout::eTransferDstOptimal,
                                   { imageBlit },
                                   vk::Filter::eLinear);
@@ -526,7 +524,7 @@ namespace renderer::backend
                                             .dstAccessMask    = vk::AccessFlagBits::eTransferRead,
                                             .oldLayout        = vk::ImageLayout::eTransferDstOptimal,
                                             .newLayout        = vk::ImageLayout::eTransferSrcOptimal,
-                                            .image            = image,
+                                            .image            = texture,
                                             .subresourceRange = mipSubRange,
                                         } });
             }
@@ -544,7 +542,7 @@ namespace renderer::backend
                                         .dstAccessMask    = vk::AccessFlagBits::eShaderRead,
                                         .oldLayout        = vk::ImageLayout::eTransferSrcOptimal,
                                         .newLayout        = vk::ImageLayout::eShaderReadOnlyOptimal,
-                                        .image            = image,
+                                        .image            = texture,
                                         .subresourceRange = subresourceRange,
                                     } });
         }
@@ -597,21 +595,20 @@ namespace renderer::backend
         // We'll need to create a separate copying mechanism in GPUBuffer where we check if the memory
         // resides in a device local + host visible memory, and if not, make sure we flush any writes and
         // also copy the staging buffer to the device local one.
-        auto bufferAccessor = bufferManager
-                                  .create("Uniform buffer",
-                                          sizeof(uniformBlock),
-                                          vk::BufferUsageFlagBits::eUniformBuffer,
-                                          VMA_MEMORY_USAGE_AUTO,
-                                          VMA_ALLOCATION_CREATE_MAPPED_BIT |
-                                              VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
-                                  .assignHandleTo(uniformBuffer.buffer)
-                                  .access();
+        uniformBuffer.buffer = bufferManager
+                                   .createScoped("Uniform buffer",
+                                                 sizeof(uniformBlock),
+                                                 vk::BufferUsageFlagBits::eUniformBuffer,
+                                                 VMA_MEMORY_USAGE_AUTO,
+                                                 VMA_ALLOCATION_CREATE_MAPPED_BIT |
+                                                     VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+                                   .access();
 
-        uniformBuffer.mapped = bufferAccessor.getMappedData();
+        uniformBuffer.mapped = uniformBuffer.buffer.getMappedData();
 
         std::memcpy(uniformBuffer.mapped, &uniformBlock, sizeof(UniformBlock));
 
-        uniformBuffer.descriptor = { bufferAccessor.getVulkanHandle(), 0, sizeof(uniformBlock) };
+        uniformBuffer.descriptor = { uniformBuffer.buffer.getVulkanHandle(), 0, sizeof(uniformBlock) };
     };
 
     void Mesh::setBoundingBox(glm::vec3 min, glm::vec3 max)
@@ -1818,38 +1815,37 @@ namespace renderer::backend
         std::memcpy(
             stagingPrimitiveBuffer.getMappedData(), primitiveData.data(), stagingPrimitiveBuffer.getSize());
 
-        auto indirectBufferAccessor =
+        drawIndirectBuffer =
             m_bufferManager
-                ->create("Draw indirect buffer",
-                         drawIndirectCommands.size() * sizeof(decltype(drawIndirectCommands)::value_type),
-                         vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndirectBuffer,
-                         VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                         VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-                .assignHandleTo(drawIndirectBuffer)
+                ->createScoped(
+                    "Draw indirect buffer",
+                    drawIndirectCommands.size() * sizeof(decltype(drawIndirectCommands)::value_type),
+                    vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndirectBuffer,
+                    VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                    VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
                 .access();
 
-        auto primitiveDataBufferAccessor =
+        primitiveDataBuffer =
             m_bufferManager
-                ->create("Primitive data buffer",
-                         primitiveData.size() * sizeof(decltype(primitiveData)::value_type),
-                         vk::BufferUsageFlagBits::eTransferDst |
-                             vk::BufferUsageFlagBits::eShaderDeviceAddress,
-                         VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                         VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-                .assignHandleTo(primitiveDataBuffer)
+                ->createScoped("Primitive data buffer",
+                               primitiveData.size() * sizeof(decltype(primitiveData)::value_type),
+                               vk::BufferUsageFlagBits::eTransferDst |
+                                   vk::BufferUsageFlagBits::eShaderDeviceAddress,
+                               VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                               VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
                 .access();
 
         cmdBuf->copyBuffer(stagingIndirectBuffer,
-                           indirectBufferAccessor,
+                           drawIndirectBuffer,
                            vk::BufferCopy().setSize(drawIndirectCommands.size() *
                                                     sizeof(decltype(drawIndirectCommands)::value_type)));
         cmdBuf->copyBuffer(
             stagingPrimitiveBuffer,
-            primitiveDataBufferAccessor,
+            primitiveDataBuffer,
             vk::BufferCopy().setSize(primitiveData.size() * sizeof(decltype(primitiveData)::value_type)));
 
-        primitiveDataBufferAddress = m_device->get().getBufferAddress(
-            vk::BufferDeviceAddressInfo().setBuffer(primitiveDataBufferAccessor));
+        primitiveDataBufferAddress =
+            m_device->get().getBufferAddress(vk::BufferDeviceAddressInfo().setBuffer(primitiveDataBuffer));
 
         size_t vertexBufferSize = vertexCount * sizeof(Vertex);
         size_t indexBufferSize  = indexCount * sizeof(uint32_t);
@@ -1867,20 +1863,19 @@ namespace renderer::backend
 
         std::memcpy(vertexStaging.getMappedData(), loaderInfo.vertexBuffer, vertexBufferSize);
 
-        auto verticesAccessor = m_bufferManager
-                                    ->create("Main vertex buffer",
-                                             vertexBufferSize,
-                                             vk::BufferUsageFlagBits::eTransferDst |
-                                                 vk::BufferUsageFlagBits::eShaderDeviceAddress,
-                                             VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                                             VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-                                    .assignHandleTo(vertices)
-                                    .access();
+        vertices = m_bufferManager
+                       ->createScoped("Main vertex buffer",
+                                      vertexBufferSize,
+                                      vk::BufferUsageFlagBits::eTransferDst |
+                                          vk::BufferUsageFlagBits::eShaderDeviceAddress,
+                                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                      VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+                       .access();
 
         vertexBufferAddress =
-            m_device->get().getBufferAddress(vk::BufferDeviceAddressInfo().setBuffer(verticesAccessor));
+            m_device->get().getBufferAddress(vk::BufferDeviceAddressInfo().setBuffer(vertices));
 
-        cmdBuf->copyBuffer(vertexStaging, verticesAccessor, vk::BufferCopy().setSize(vertexBufferSize));
+        cmdBuf->copyBuffer(vertexStaging, vertices, vk::BufferCopy().setSize(vertexBufferSize));
 
         if (indexBufferSize > 0)
         {
@@ -1895,17 +1890,16 @@ namespace renderer::backend
 
             std::memcpy(indexStaging.getMappedData(), loaderInfo.indexBuffer, indexBufferSize);
 
-            auto indicesAccessor =
-                m_bufferManager
-                    ->create("Main index buffer",
-                             indexBufferSize,
-                             vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
-                             VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                             VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-                    .assignHandleTo(indices)
-                    .access();
+            indices = m_bufferManager
+                          ->createScoped("Main index buffer",
+                                         indexBufferSize,
+                                         vk::BufferUsageFlagBits::eTransferDst |
+                                             vk::BufferUsageFlagBits::eIndexBuffer,
+                                         VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                         VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+                          .access();
 
-            cmdBuf->copyBuffer(indexStaging, indicesAccessor, vk::BufferCopy().setSize(indexBufferSize));
+            cmdBuf->copyBuffer(indexStaging, indices, vk::BufferCopy().setSize(indexBufferSize));
 
             cmdBuf.flush();
         }
@@ -2181,23 +2175,22 @@ namespace renderer::backend
 
         std::memcpy(stagingBufferAccessor.getMappedData(), shaderMaterials.data(), bufferSize);
 
-        auto materialBufferAccessor = m_bufferManager
-                                          ->create("Material buffer",
-                                                   bufferSize,
-                                                   vk::BufferUsageFlagBits::eShaderDeviceAddress |
-                                                       vk::BufferUsageFlagBits::eTransferDst,
-                                                   VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                                                   VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-                                          .assignHandleTo(materialBuffer)
-                                          .access();
+        materialBuffer = m_bufferManager
+                             ->createScoped("Material buffer",
+                                            bufferSize,
+                                            vk::BufferUsageFlagBits::eShaderDeviceAddress |
+                                                vk::BufferUsageFlagBits::eTransferDst,
+                                            VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                            VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+                             .access();
 
         materialBufferAddress =
-            m_device->get().getBufferAddress(vk::BufferDeviceAddressInfo().setBuffer(materialBufferAccessor));
+            m_device->get().getBufferAddress(vk::BufferDeviceAddressInfo().setBuffer(materialBuffer));
 
         // TODO(aether) the deconstructor will block until the copy is over
         // not the most performant approach
         ScopedCommandBuffer(*m_device, m_cmdManager->getTransferCmdPool(), m_device->getTransferQueue(), true)
-            ->copyBuffer(stagingBufferAccessor, materialBufferAccessor, vk::BufferCopy().setSize(bufferSize));
+            ->copyBuffer(stagingBufferAccessor, materialBuffer, vk::BufferCopy().setSize(bufferSize));
     }
 
     void Model::setupDescriptors()
@@ -2250,7 +2243,7 @@ namespace renderer::backend
                     continue;
                 }
 
-                ResourceAccessor<Image> img = m_imageManager->access(tex->texture);
+                ResourceAccessor<Image>& img = tex->texture;
 
                 if constexpr (kDebug)
                 {

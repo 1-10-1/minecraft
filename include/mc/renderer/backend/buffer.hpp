@@ -85,6 +85,8 @@ namespace renderer::backend
     class ResourceAccessor<GPUBuffer> : public ResourceAccessorBase<GPUBuffer>
     {
     public:
+        ResourceAccessor() = default;
+
         ResourceAccessor(ResourceManager<GPUBuffer>& manager, ResourceHandle handle)
             : ResourceAccessorBase<GPUBuffer> { manager, handle } {};
 

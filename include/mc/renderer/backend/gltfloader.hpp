@@ -64,7 +64,7 @@ namespace renderer::backend
 
         // TODO(aether) currently, this class handles everything from uploading to compressing
         // differ that to the Texture class instead
-        ResourceHandle texture {};
+        ResourceAccessor<Image> texture {};
 
         vk::ImageLayout layout {};
 
@@ -215,7 +215,7 @@ namespace renderer::backend
 
         struct UniformBuffer
         {
-            ResourceHandle buffer;
+            ResourceAccessor<GPUBuffer> buffer;
             VkDescriptorBufferInfo descriptor;
             VkDescriptorSet descriptorSet;
             void* mapped;
@@ -355,7 +355,8 @@ namespace renderer::backend
         Model(Model const&)            = delete;
         Model& operator=(Model const&) = delete;
 
-        ResourceHandle indices, vertices, materialBuffer, drawIndirectBuffer, primitiveDataBuffer;
+        ResourceAccessor<GPUBuffer> indices, vertices, materialBuffer, drawIndirectBuffer,
+            primitiveDataBuffer;
 
         vk::DescriptorSet bindlessMaterialDescriptorSet { nullptr };
 

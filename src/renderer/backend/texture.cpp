@@ -14,17 +14,17 @@ Texture::Texture(ResourceHandle handle,
                  StbiWrapper const& stbiImage)
     : ResourceBase { handle },
       image { imageManager
-                  .create(name,
-                          stbiImage.getDimensions(),
-                          vk::Format::eR8G8B8A8Unorm,
-                          vk::SampleCountFlagBits::e1,
-                          vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst |
-                              vk::ImageUsageFlagBits::eSampled,
-                          vk::ImageAspectFlagBits::eColor,
-                          static_cast<uint32_t>(std::floor(std::log2(
-                              std::max(stbiImage.getDimensions().width, stbiImage.getDimensions().height)))) +
-                              1)
-                  .getHandle() }
+                  .createScoped(name,
+                                stbiImage.getDimensions(),
+                                vk::Format::eR8G8B8A8Unorm,
+                                vk::SampleCountFlagBits::e1,
+                                vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst |
+                                    vk::ImageUsageFlagBits::eSampled,
+                                vk::ImageAspectFlagBits::eColor,
+                                static_cast<uint32_t>(std::floor(std::log2(std::max(
+                                    stbiImage.getDimensions().width, stbiImage.getDimensions().height)))) +
+                                    1)
+                  .access() }
 {
     vk::Extent2D dimensions = stbiImage.getDimensions();
 
@@ -37,15 +37,13 @@ Texture::Texture(ResourceHandle handle,
                                               VMA_ALLOCATION_CREATE_MAPPED_BIT)
                             .access();
 
-    ResourceAccessor<Image> imageAccessor = imageManager.access(image);
-
     std::memcpy(uploadBuffer.getMappedData(), stbiImage.getData(), stbiImage.getDataSize());
 
     {
         ScopedCommandBuffer commandBuffer(device, commandManager.getMainCmdPool(), device.getMainQueue());
 
         Image::transition(commandBuffer,
-                          imageAccessor.getVulkanHandle(),
+                          image.getVulkanHandle(),
                           vk::ImageLayout::eUndefined,
                           vk::ImageLayout::eTransferDstOptimal);
 
@@ -64,7 +62,7 @@ Texture::Texture(ResourceHandle handle,
             };
 
         commandBuffer->copyBufferToImage(
-            uploadBuffer, imageAccessor.getVulkanHandle(), vk::ImageLayout::eTransferDstOptimal, { region });
+            uploadBuffer, image.getVulkanHandle(), vk::ImageLayout::eTransferDstOptimal, { region });
 
         //transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL here
         // generateMipmaps(commandBuffer,
@@ -86,7 +84,7 @@ Texture::Texture(ResourceHandle handle,
                     .newLayout     = vk::ImageLayout::eShaderReadOnlyOptimal,
                     .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
                     .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-                    .image = imageAccessor.getVulkanHandle(),
+                    .image = image.getVulkanHandle(),
                     .subresourceRange = {
                         .aspectMask     = vk::ImageAspectFlagBits::eColor,
                         .levelCount     = 1,
@@ -109,17 +107,17 @@ Texture::Texture(ResourceHandle handle,
                  size_t dataSize)
     : ResourceBase { handle },
       image { imageManager
-                  .create(name,
-                          dimensions,
-                          vk::Format::eR8G8B8A8Unorm,
-                          vk::SampleCountFlagBits::e1,
-                          vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst |
-                              vk::ImageUsageFlagBits::eSampled,
-                          vk::ImageAspectFlagBits::eColor,
-                          static_cast<uint32_t>(
-                              std::floor(std::log2(std::max(dimensions.width, dimensions.height)))) +
-                              1)
-                  .getHandle() }
+                  .createScoped(name,
+                                dimensions,
+                                vk::Format::eR8G8B8A8Unorm,
+                                vk::SampleCountFlagBits::e1,
+                                vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst |
+                                    vk::ImageUsageFlagBits::eSampled,
+                                vk::ImageAspectFlagBits::eColor,
+                                static_cast<uint32_t>(
+                                    std::floor(std::log2(std::max(dimensions.width, dimensions.height)))) +
+                                    1)
+                  .access() }
 {
     auto uploadBuffer = bufferManager
                             .createScoped(std::format("Upload buffer for texture '{}'", name),
@@ -130,8 +128,6 @@ Texture::Texture(ResourceHandle handle,
                                               VMA_ALLOCATION_CREATE_MAPPED_BIT)
                             .access();
 
-    ResourceAccessor<Image> img = imageManager.access(image);
-
     std::memcpy(uploadBuffer.getMappedData(), data, dataSize);
 
     {
@@ -139,7 +135,7 @@ Texture::Texture(ResourceHandle handle,
         ScopedCommandBuffer commandBuffer(device, commandManager.getMainCmdPool(), device.getMainQueue());
 
         Image::transition(commandBuffer,
-                          img.getVulkanHandle(),
+                          image.getVulkanHandle(),
                           vk::ImageLayout::eUndefined,
                           vk::ImageLayout::eTransferDstOptimal);
 
@@ -158,7 +154,7 @@ Texture::Texture(ResourceHandle handle,
             };
 
         commandBuffer->copyBufferToImage(
-            uploadBuffer, img.getVulkanHandle(), vk::ImageLayout::eTransferDstOptimal, { region });
+            uploadBuffer, image.getVulkanHandle(), vk::ImageLayout::eTransferDstOptimal, { region });
 
         // transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL here
         // generateMipmaps(commandBuffer,
@@ -180,7 +176,7 @@ Texture::Texture(ResourceHandle handle,
                     .newLayout     = vk::ImageLayout::eShaderReadOnlyOptimal,
                     .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
                     .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-                    .image = img.getVulkanHandle(),
+                    .image = image.getVulkanHandle(),
                     .subresourceRange = {
                         .aspectMask     = vk::ImageAspectFlagBits::eColor,
                         .levelCount     = 1,

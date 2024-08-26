@@ -82,13 +82,15 @@ namespace renderer::backend
 
         uint32_t mipLevels { 0 };
 
-        ResourceHandle image;
+        ResourceAccessor<Image> image;
     };
 
     template<>
     class ResourceAccessor<Texture> : public ResourceAccessorBase<Texture>
     {
     public:
+        ResourceAccessor() = default;
+
         ResourceAccessor(ResourceManager<Texture>& manager, ResourceHandle handle)
             : ResourceAccessorBase<Texture> { manager, handle } {};
 
@@ -102,7 +104,7 @@ namespace renderer::backend
 
         [[nodiscard]] auto getPath() const -> std::string const& { return get().path; }
 
-        [[nodiscard]] auto getImage() const -> ResourceHandle const& { return get().image; }
+        [[nodiscard]] auto getImage() const -> ResourceAccessor<Image> const& { return get().image; }
 
         [[nodiscard]] auto getMipLevels() const -> uint32_t { return get().mipLevels; }
 
