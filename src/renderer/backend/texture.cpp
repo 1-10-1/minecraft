@@ -13,29 +13,25 @@ Texture::Texture(ResourceHandle handle,
                  ResourceManager<GPUBuffer>& bufferManager,
                  StbiWrapper const& stbiImage)
     : ResourceBase { handle },
-      image { imageManager
-                  .create(name,
-                          stbiImage.getDimensions(),
-                          vk::Format::eR8G8B8A8Unorm,
-                          vk::SampleCountFlagBits::e1,
-                          vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst |
-                              vk::ImageUsageFlagBits::eSampled,
-                          vk::ImageAspectFlagBits::eColor,
-                          static_cast<uint32_t>(std::floor(std::log2(
-                              std::max(stbiImage.getDimensions().width, stbiImage.getDimensions().height)))) +
-                              1)
-                  .access() }
+      image { imageManager.create(name,
+                                  stbiImage.getDimensions(),
+                                  vk::Format::eR8G8B8A8Unorm,
+                                  vk::SampleCountFlagBits::e1,
+                                  vk::ImageUsageFlagBits::eTransferSrc |
+                                      vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+                                  vk::ImageAspectFlagBits::eColor,
+                                  static_cast<uint32_t>(std::floor(std::log2(std::max(
+                                      stbiImage.getDimensions().width, stbiImage.getDimensions().height)))) +
+                                      1) }
 {
     vk::Extent2D dimensions = stbiImage.getDimensions();
 
-    auto uploadBuffer =
-        bufferManager
-            .create(std::format("Upload buffer for texture '{}'", name),
-                    stbiImage.getDataSize(),
-                    vk::BufferUsageFlagBits::eTransferSrc,
-                    VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                    VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT)
-            .access();
+    auto uploadBuffer = bufferManager.create(std::format("Upload buffer for texture '{}'", name),
+                                             stbiImage.getDataSize(),
+                                             vk::BufferUsageFlagBits::eTransferSrc,
+                                             VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                             VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                                                 VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
     std::memcpy(uploadBuffer.getMappedData(), stbiImage.getData(), stbiImage.getDataSize());
 
@@ -106,27 +102,22 @@ Texture::Texture(ResourceHandle handle,
                  void* data,
                  size_t dataSize)
     : ResourceBase { handle },
-      image { imageManager
-                  .create(name,
-                          dimensions,
-                          vk::Format::eR8G8B8A8Unorm,
-                          vk::SampleCountFlagBits::e1,
-                          vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst |
-                              vk::ImageUsageFlagBits::eSampled,
-                          vk::ImageAspectFlagBits::eColor,
-                          static_cast<uint32_t>(
-                              std::floor(std::log2(std::max(dimensions.width, dimensions.height)))) +
-                              1)
-                  .access() }
+      image { imageManager.create(
+          name,
+          dimensions,
+          vk::Format::eR8G8B8A8Unorm,
+          vk::SampleCountFlagBits::e1,
+          vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst |
+              vk::ImageUsageFlagBits::eSampled,
+          vk::ImageAspectFlagBits::eColor,
+          static_cast<uint32_t>(std::floor(std::log2(std::max(dimensions.width, dimensions.height)))) + 1) }
 {
-    auto uploadBuffer =
-        bufferManager
-            .create(std::format("Upload buffer for texture '{}'", name),
-                    dataSize,
-                    vk::BufferUsageFlagBits::eTransferSrc,
-                    VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                    VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT)
-            .access();
+    auto uploadBuffer = bufferManager.create(std::format("Upload buffer for texture '{}'", name),
+                                             dataSize,
+                                             vk::BufferUsageFlagBits::eTransferSrc,
+                                             VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                             VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                                                 VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
     std::memcpy(uploadBuffer.getMappedData(), data, dataSize);
 

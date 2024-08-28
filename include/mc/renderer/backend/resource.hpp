@@ -99,6 +99,7 @@ namespace renderer::backend
         {
             swap(*this, other);
 
+            // FIXME(aether) why is this necessary?
             other.m_manager = nullptr;
         };
 
@@ -250,8 +251,7 @@ namespace renderer::backend
         ResourceManagerBase& operator=(ResourceManagerBase&&) = default;
 
         template<typename Self, typename... Args>
-        auto
-        create(this Self&& self, std::string const& name, Args&&... args) -> ResourceCreationResult<Resource>
+        auto create(this Self&& self, std::string const& name, Args&&... args) -> ResourceAccessor<Resource>
         {
             if (size_t dormResources = self.m_dormantIndices.size(); dormResources > 100)
             {
@@ -274,10 +274,8 @@ namespace renderer::backend
                                               self.m_extraConstructionParams,
                                               std::forward_as_tuple(std::forward<Args>(args)...))));
 
-                return ResourceCreationResult<Resource>(
-                    res.getHandle(),
-                    ResourceAccessor<Resource>(*dynamic_cast<ResourceManager<Resource>*>(&self),
-                                               res.getHandle()));
+                return ResourceAccessor<Resource>(*dynamic_cast<ResourceManager<Resource>*>(&self),
+                                                  res.getHandle());
             }
             else
             {
@@ -291,10 +289,8 @@ namespace renderer::backend
 
                 self.m_dormantIndices.pop_back();
 
-                return ResourceCreationResult<Resource>(
-                    dormantResource.getHandle(),
-                    ResourceAccessor<Resource>(*dynamic_cast<ResourceManager<Resource>*>(&self),
-                                               dormantResource.getHandle()));
+                return ResourceAccessor<Resource>(*dynamic_cast<ResourceManager<Resource>*>(&self),
+                                                  dormantResource.getHandle());
             }
         };
 
