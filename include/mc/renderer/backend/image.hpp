@@ -23,7 +23,7 @@ namespace renderer::backend
         friend class ResourceAccessor<Image>;
         friend class ResourceManagerBase<Image>;
 
-        Image() : ResourceBase(ResourceHandle(0, ResourceHandle::invalidCreationNumber)) {}
+        Image() = default;
 
         Image(ResourceHandle handle,
               std::string const& name,

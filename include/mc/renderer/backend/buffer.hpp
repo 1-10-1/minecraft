@@ -18,7 +18,7 @@ namespace renderer::backend
         friend class ResourceAccessor<GPUBuffer>;
         friend class ResourceManagerBase<GPUBuffer>;
 
-        GPUBuffer() : ResourceBase(ResourceHandle(0, ResourceHandle::invalidCreationNumber)) {}
+        GPUBuffer() = default;
 
         GPUBuffer(ResourceHandle handle,
                   std::string const& name,

@@ -20,8 +20,6 @@ namespace renderer::backend
         template<typename T>
         friend class ResourceManagerBase;
 
-    public:
-        ResourceHandle() = default;
         ResourceHandle(uint64_t index, uint64_t creationNumber, [[maybe_unused]] std::string const& name = {})
             : m_index { index },
               m_creationNumber { creationNumber }
@@ -30,6 +28,9 @@ namespace renderer::backend
               m_name { name }
 #endif
               {};
+
+    public:
+        ResourceHandle() = default;
 
         ResourceHandle(ResourceHandle&&)            = default;
         ResourceHandle& operator=(ResourceHandle&&) = default;
@@ -87,36 +88,11 @@ namespace renderer::backend
         friend class ResourceManagerBase<Resource>;
 
     public:
-        friend void swap(ResourceAccessorBase& first, ResourceAccessorBase& second) noexcept
-        {
-            using std::swap;
-
-            swap(first.m_manager, second.m_manager);
-            swap(first.m_handle, second.m_handle);
-        }
-
-        ResourceAccessorBase(ResourceAccessorBase&& other) noexcept
-        {
-            swap(*this, other);
-
-            // FIXME(aether) why is this necessary?
-            other.m_manager = nullptr;
-        };
-
-        ResourceAccessorBase& operator=(ResourceAccessorBase other) noexcept
-        {
-            swap(*this, other);
-
-            other.m_manager = nullptr;
-
-            return *this;
-        }
-
         virtual ~ResourceAccessorBase()
         {
             if (m_manager)
             {
-                m_manager->destroy(m_handle);
+                m_manager->decrementRefCount(m_handle);
             }
         }
 
@@ -126,7 +102,65 @@ namespace renderer::backend
         ResourceAccessorBase() = default;
 
         ResourceAccessorBase(ResourceManager<Resource>& manager, ResourceHandle handle)
-            : m_manager { &manager }, m_handle { handle } {};
+            : m_manager { &manager }, m_handle { handle }
+        {
+            m_manager->incrementRefCount(m_handle);
+        };
+
+        ResourceAccessorBase(ResourceAccessorBase const& rhs) noexcept
+            : m_manager { rhs.m_manager }, m_handle { rhs.m_handle }
+        {
+            if (m_manager)
+            {
+                m_manager->incrementRefCount(m_handle);
+            }
+        }
+
+        ResourceAccessorBase(ResourceAccessorBase&& rhs) noexcept
+            : m_manager { std::exchange(rhs.m_manager, nullptr) },
+              m_handle { std::exchange(rhs.m_handle, {}) }
+        {
+            if (m_manager)
+            {
+                m_manager->incrementRefCount(m_handle);
+            }
+        }
+
+        ResourceAccessorBase& operator=(ResourceAccessorBase const& rhs) noexcept
+        {
+            if (this == &rhs)
+            {
+                return *this;
+            }
+
+            m_manager = rhs.m_manager;
+            m_handle  = rhs.m_handle;
+
+            if (m_manager)
+            {
+                m_manager->incrementRefCount(m_handle);
+            }
+
+            return *this;
+        }
+
+        ResourceAccessorBase& operator=(ResourceAccessorBase&& rhs) noexcept
+        {
+            if (this == &rhs)
+            {
+                return *this;
+            }
+
+            m_manager = std::exchange(rhs.m_manager, nullptr);
+            m_handle  = std::exchange(rhs.m_handle, {});
+
+            if (m_manager)
+            {
+                m_manager->incrementRefCount(m_handle);
+            }
+
+            return *this;
+        }
 
         auto get() -> Resource& { return m_manager->getResource(m_handle); }
 
@@ -136,13 +170,13 @@ namespace renderer::backend
         ResourceHandle m_handle {};
     };
 
-    template<typename Resource>
-    class ResourceManagerBase;
-
     class ResourceBase
     {
         template<typename Resource>
         friend class ResourceManagerBase;
+
+    protected:
+        ResourceBase() = default;
 
     public:
         ResourceBase(ResourceBase&&)            = default;
@@ -151,7 +185,6 @@ namespace renderer::backend
         ResourceBase(ResourceBase const&)            = delete;
         ResourceBase& operator=(ResourceBase const&) = delete;
 
-        ResourceBase()          = delete;
         virtual ~ResourceBase() = default;
 
         ResourceBase(ResourceHandle handle) : m_handle { handle } {};
@@ -161,74 +194,11 @@ namespace renderer::backend
         auto operator==(ResourceBase& rhs) -> bool { return m_handle == rhs.m_handle; }
 
     protected:
-        ResourceHandle m_handle;
-    };
-
-    // To allow specific resources to extend managers via partial specialization and inheritence
-    template<typename Resource>
-    class ResourceManager final : public ResourceManagerBase<Resource>
-    {
-        friend class ResourceManagerBase<Resource>;
-
-        std::tuple<> m_extraConstructionParams {};
-
-    public:
-        ResourceManager(ResourceManager&&)            = default;
-        ResourceManager& operator=(ResourceManager&&) = default;
-
-        ResourceManager(ResourceManager const&)            = delete;
-        ResourceManager& operator=(ResourceManager const&) = delete;
-    };
-
-    template<typename Resource>
-    class ResourceCreationResult
-    {
-        friend class ResourceManagerBase<Resource>;
-
-        ResourceCreationResult(ResourceHandle handle, ResourceAccessor<Resource>&& accessor)
-            : m_handle { handle }, m_accessor { std::move(accessor) } {};
-
-        ResourceHandle m_handle;
-        ResourceAccessor<Resource> m_accessor;
-
-        bool m_accessorMoved = false;
-
-    public:
-        ResourceCreationResult(ResourceCreationResult&&)      = default;
-        ResourceCreationResult(ResourceCreationResult const&) = delete;
-
-        ResourceCreationResult& operator=(ResourceCreationResult&&)      = delete;
-        ResourceCreationResult& operator=(ResourceCreationResult const&) = delete;
-
-        [[nodiscard]] auto access() -> ResourceAccessor<Resource>
-        {
-            MC_ASSERT(!m_accessorMoved);
-            m_accessorMoved = true;
-
-            return std::move(m_accessor);
-        }
-
-        [[nodiscard]] auto getHandle() -> ResourceHandle { return m_handle; }
-
-        [[nodiscard]] auto getHandleAndAccess() -> std::pair<ResourceHandle, ResourceAccessor<Resource>>
-        {
-            MC_ASSERT(!m_accessorMoved);
-            m_accessorMoved = true;
-
-            return std::make_pair(m_handle, std::move(m_accessor));
-        };
-
-        auto assignHandleTo(ResourceHandle& to) -> ResourceCreationResult<Resource>&
-        {
-            to = m_handle;
-
-            return *this;
-        }
+        ResourceHandle m_handle {};
     };
 
     template<typename Resource>
     class ResourceManagerBase
-
     {
         friend class ResourceAccessorBase<Resource>;
         friend class ResourceManager<Resource>;
@@ -266,44 +236,48 @@ namespace renderer::backend
 
             if (self.m_dormantIndices.empty())
             {
-                Resource& res = self.m_resources.emplace_back(
-                    std::apply(createResource,
-                               std::tuple_cat(std::make_tuple(ResourceHandle(
-                                                  self.m_resources.size(), self.m_creationCounter++, name)),
-                                              std::tie(name),
-                                              self.m_extraConstructionParams,
-                                              std::forward_as_tuple(std::forward<Args>(args)...))));
+                RefCountedResource& res = self.m_resources.emplace_back(RefCountedResource {
+                    .resource = std::apply(
+                        createResource,
+                        std::tuple_cat(std::make_tuple(ResourceHandle(
+                                           self.m_resources.size(), self.m_creationCounter++, name)),
+                                       std::tie(name),
+                                       self.m_extraConstructionParams,
+                                       std::forward_as_tuple(std::forward<Args>(args)...))),
+                });
 
                 return ResourceAccessor<Resource>(*dynamic_cast<ResourceManager<Resource>*>(&self),
-                                                  res.getHandle());
+                                                  res.resource.getHandle());
             }
             else
             {
-                Resource& dormantResource = self.m_resources[self.m_dormantIndices.back()] = std::apply(
-                    createResource,
-                    std::tuple_cat(std::make_tuple(ResourceHandle(
-                                       self.m_dormantIndices.back(), self.m_creationCounter++, name)),
-                                   std::tie(name),
-                                   self.m_extraConstructionParams,
-                                   std::forward_as_tuple(std::forward<Args>(args)...)));
+                RefCountedResource& dormantResource = self.m_resources[self.m_dormantIndices.back()] = {
+                    .resource = std::apply(
+                        createResource,
+                        std::tuple_cat(std::make_tuple(ResourceHandle(
+                                           self.m_dormantIndices.back(), self.m_creationCounter++, name)),
+                                       std::tie(name),
+                                       self.m_extraConstructionParams,
+                                       std::forward_as_tuple(std::forward<Args>(args)...))),
+                };
 
                 self.m_dormantIndices.pop_back();
 
                 return ResourceAccessor<Resource>(*dynamic_cast<ResourceManager<Resource>*>(&self),
-                                                  dormantResource.getHandle());
+                                                  dormantResource.resource.getHandle());
             }
         };
 
-        void destroy(ResourceHandle handle)
+        void destroy(ResourceHandle const& handle)
 
         {
             MC_ASSERT(isValid(handle));
 
-            m_resources[handle.getIndex()] = Resource();
+            m_resources[handle.getIndex()] = {};
             m_dormantIndices.push_back(handle.getIndex());
         };
 
-        auto access(ResourceHandle handle) -> ResourceAccessor<Resource>
+        auto access(ResourceHandle const& handle) -> ResourceAccessor<Resource>
 
         {
             MC_ASSERT(isValid(handle));
@@ -311,10 +285,10 @@ namespace renderer::backend
             return ResourceAccessor<Resource>(*dynamic_cast<ResourceManager<Resource>*>(this), handle);
         };
 
-        bool isValid(ResourceHandle handle) const
+        bool isValid(ResourceHandle const& handle) const
         {
             return handle.hasInitialized() && handle.getIndex() <= m_resources.size() &&
-                   m_resources[handle.getIndex()].m_handle == handle;
+                   m_resources[handle.getIndex()].resource.m_handle == handle;
         };
 
         size_t getNumResources() { return m_resources.size(); };
@@ -322,7 +296,26 @@ namespace renderer::backend
         size_t getNumActiveResources() { return m_resources.size() - m_dormantIndices.size(); };
 
     private:
-        Resource& getResource(ResourceHandle handle)
+        struct RefCountedResource
+        {
+            Resource resource;
+            uint32_t refCount;
+
+            operator Resource&() { return resource; }
+        };
+
+        Resource& getResource(ResourceHandle const& handle)
+        {
+            MC_ASSERT_MSG(isValid(handle),
+                          "Attempted to access {}",
+                          handle.hasInitialized()
+                              ? std::format("a deleted handle (previously named '{}')", handle.getName())
+                              : "an uninitialized handle");
+
+            return m_resources[handle.getIndex()];
+        }
+
+        RefCountedResource& getRefCoutedResource(ResourceHandle const& handle)
         {
             MC_ASSERT_MSG(isValid(handle),
                           "Attempted to access {}",
@@ -335,9 +328,36 @@ namespace renderer::backend
 
         auto getExtraConstructionParams() { return std::make_tuple(); };
 
-        std::vector<Resource> m_resources;
+        void incrementRefCount(ResourceHandle const& handle) { getRefCoutedResource(handle).refCount++; }
+
+        void decrementRefCount(ResourceHandle const& handle)
+        {
+            if (--getRefCoutedResource(handle).refCount == 0)
+            {
+                destroy(handle);
+            };
+        };
+
+        std::vector<RefCountedResource> m_resources;
+
         std::vector<uint32_t> m_dormantIndices;
 
         uint64_t m_creationCounter { 0 };
+    };
+
+    // To allow specific resources to extend managers via partial specialization and inheritence
+    template<typename Resource>
+    class ResourceManager final : public ResourceManagerBase<Resource>
+    {
+        friend class ResourceManagerBase<Resource>;
+
+        std::tuple<> m_extraConstructionParams {};
+
+    public:
+        ResourceManager(ResourceManager&&)            = default;
+        ResourceManager& operator=(ResourceManager&&) = default;
+
+        ResourceManager(ResourceManager const&)            = delete;
+        ResourceManager& operator=(ResourceManager const&) = delete;
     };
 }  // namespace renderer::backend

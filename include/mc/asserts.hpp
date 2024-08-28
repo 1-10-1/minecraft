@@ -63,17 +63,13 @@
 #    define MC_ASSERT(expr)               (void)(expr);
 #    define MC_ASSERT_LOC(expr, location) (void)(expr);
 
-#    define MC_ASSERT_MSG(expr, ...)                                        \
-        {                                                                   \
-            (void)(expr);                                                   \
-            /* So that the expressions in __VA_ARGS__ are also evaluated */ \
-            std::tuple { __VA_ARGS__ };                                     \
+#    define MC_ASSERT_MSG(expr, ...) \
+        {                            \
+            (void)(expr);            \
         }
 
-#    define MC_ASSERT_MSG_LOC(location, expr, ...)                          \
-        {                                                                   \
-            (void)(expr);                                                   \
-            /* So that the expressions in __VA_ARGS__ are also evaluated */ \
-            std::tuple { __VA_ARGS__ };                                     \
+#    define MC_ASSERT_MSG_LOC(location, expr, ...) \
+        {                                          \
+            (void)(expr);                          \
         }
 #endif

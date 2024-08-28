@@ -49,7 +49,7 @@ namespace renderer::backend
     {
         friend class ResourceManagerBase<Texture>;
 
-        Texture() : ResourceBase(ResourceHandle(0, ResourceHandle::invalidCreationNumber)) {}
+        Texture() = default;
 
         Texture(ResourceHandle handle,
                 std::string const& name,
