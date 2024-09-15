@@ -9,9 +9,13 @@
 #include <type_traits>
 #include <vector>
 
-// TODO(aether) implement reference counting and copying ResourceAccessors
-// TODO(aether) maybe remove ResourceCreationResult entirely? Seems to be of no use
-// TODO(aether) Minimize copying ResourceHandles. They're not entirely cheap.
+// TODO(aether) There is one pretty big design issue with reference counting accessors
+// say I moved an accessor to another scope and that accessors gets destroyed
+// and it was the only accessor to a resource
+// i would expect to be able to use the handle that it had to access it again later, but
+// that resource was destroyed with the destruction of that accessor which
+// doesn't make sense since an accessor should be just that: an accessor
+// it shouldn't be directly tied to the lifetime of the resource
 
 namespace renderer::backend
 {
@@ -101,7 +105,7 @@ namespace renderer::backend
     protected:
         ResourceAccessorBase() = default;
 
-        ResourceAccessorBase(ResourceManager<Resource>& manager, ResourceHandle handle)
+        ResourceAccessorBase(ResourceManager<Resource>& manager, ResourceHandle const& handle)
             : m_manager { &manager }, m_handle { handle }
         {
             m_manager->incrementRefCount(m_handle);
@@ -187,9 +191,9 @@ namespace renderer::backend
 
         virtual ~ResourceBase() = default;
 
-        ResourceBase(ResourceHandle handle) : m_handle { handle } {};
+        ResourceBase(ResourceHandle const& handle) : m_handle { handle } {};
 
-        auto getHandle() const -> ResourceHandle { return m_handle; }
+        auto getHandle() const -> ResourceHandle const& { return m_handle; }
 
         auto operator==(ResourceBase& rhs) -> bool { return m_handle == rhs.m_handle; }
 

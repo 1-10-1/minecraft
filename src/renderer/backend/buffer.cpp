@@ -7,7 +7,7 @@
 
 namespace renderer::backend
 {
-    GPUBuffer::GPUBuffer(ResourceHandle handle,
+    GPUBuffer::GPUBuffer(ResourceHandle const& handle,
                          std::string const& name,
                          Device& device,
                          Allocator& allocator,

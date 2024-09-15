@@ -20,7 +20,7 @@ namespace renderer::backend
 
         GPUBuffer() = default;
 
-        GPUBuffer(ResourceHandle handle,
+        GPUBuffer(ResourceHandle const& handle,
                   std::string const& name,
                   Device& device,
                   Allocator& allocator,
@@ -87,7 +87,7 @@ namespace renderer::backend
     public:
         ResourceAccessor() = default;
 
-        ResourceAccessor(ResourceManager<GPUBuffer>& manager, ResourceHandle handle)
+        ResourceAccessor(ResourceManager<GPUBuffer>& manager, ResourceHandle const& handle)
             : ResourceAccessorBase<GPUBuffer> { manager, handle } {};
 
         virtual ~ResourceAccessor() = default;
@@ -95,8 +95,14 @@ namespace renderer::backend
         ResourceAccessor(ResourceAccessor&&)            = default;
         ResourceAccessor& operator=(ResourceAccessor&&) = default;
 
-        ResourceAccessor(ResourceAccessor const&)            = delete;
-        ResourceAccessor& operator=(ResourceAccessor const&) = delete;
+        ResourceAccessor(ResourceAccessor const& rhs) : ResourceAccessorBase<GPUBuffer>(rhs) {};
+
+        ResourceAccessor& operator=(ResourceAccessor const& rhs)
+        {
+            ResourceAccessorBase<GPUBuffer>::operator=(rhs);
+
+            return *this;
+        };
 
         [[nodiscard]] operator bool() const { return get().vulkanHandle; }
 

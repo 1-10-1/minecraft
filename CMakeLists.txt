@@ -33,7 +33,13 @@ list(APPEND SOURCE_FILES
 
     src/renderer/backend/renderer_backend.cpp
     src/renderer/backend/stb.cpp
-    src/renderer/backend/gltfloader.cpp
+    src/renderer/backend/gltf/loader.cpp
+    src/renderer/backend/gltf/animation.cpp
+    src/renderer/backend/gltf/material.cpp
+    src/renderer/backend/gltf/gltfTextures.cpp
+    src/renderer/backend/gltf/boundingBox.cpp
+    src/renderer/backend/gltf/mesh.cpp
+    src/renderer/backend/gltf/node.cpp
     src/renderer/backend/render.cpp
     src/renderer/backend/instance.cpp
     src/renderer/backend/surface.cpp

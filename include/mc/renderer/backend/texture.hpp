@@ -51,7 +51,7 @@ namespace renderer::backend
 
         Texture() = default;
 
-        Texture(ResourceHandle handle,
+        Texture(ResourceHandle const& handle,
                 std::string const& name,
                 Device& device,
                 CommandManager& commandManager,
@@ -59,7 +59,7 @@ namespace renderer::backend
                 ResourceManager<GPUBuffer>& bufferManager,
                 StbiWrapper const& stbiImage);
 
-        Texture(ResourceHandle handle,
+        Texture(ResourceHandle const& handle,
                 std::string const& name,
                 Device& device,
                 CommandManager& commandManager,
@@ -99,8 +99,14 @@ namespace renderer::backend
         ResourceAccessor(ResourceAccessor&&)            = default;
         ResourceAccessor& operator=(ResourceAccessor&&) = default;
 
-        ResourceAccessor(ResourceAccessor const&)            = delete;
-        ResourceAccessor& operator=(ResourceAccessor const&) = delete;
+        ResourceAccessor(ResourceAccessor const& rhs) : ResourceAccessorBase<Texture>(rhs) {};
+
+        ResourceAccessor& operator=(ResourceAccessor const& rhs)
+        {
+            ResourceAccessorBase<Texture>::operator=(rhs);
+
+            return *this;
+        };
 
         [[nodiscard]] auto getPath() const -> std::string const& { return get().path; }
 

@@ -17,6 +17,9 @@
 
 namespace renderer::backend
 {
+    // Determines pipeline stages involved for given accesses
+    vk::PipelineStageFlags determinePipelineStageFlags(vk::AccessFlags accessFlags);
+
     // TODO(aether) VERTEX BUFFER SHOULD USE STORAGEBUFFERBIT AND SHADERDEVICEADDRESSBIT
     auto createGPUOnlyBuffer(Device& device,
                              Allocator& allocator,

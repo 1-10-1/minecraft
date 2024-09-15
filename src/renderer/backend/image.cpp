@@ -12,7 +12,7 @@
 
 namespace renderer::backend
 {
-    Image::Image(ResourceHandle handle,
+    Image::Image(ResourceHandle const& handle,
                  std::string const& name [[maybe_unused]],
                  Device const& device,
                  Allocator const& allocator,

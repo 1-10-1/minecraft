@@ -5,7 +5,7 @@
 
 using namespace renderer::backend;
 
-Texture::Texture(ResourceHandle handle,
+Texture::Texture(ResourceHandle const& handle,
                  std::string const& name,
                  Device& device,
                  CommandManager& commandManager,
@@ -92,7 +92,7 @@ Texture::Texture(ResourceHandle handle,
     }
 }
 
-Texture::Texture(ResourceHandle handle,
+Texture::Texture(ResourceHandle const& handle,
                  std::string const& name,
                  Device& device,
                  CommandManager& commandManager,

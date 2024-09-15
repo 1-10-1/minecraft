@@ -93,7 +93,7 @@ namespace utils
     }
 
     template<typename ReturnType = uint32_t, typename MemberType, typename ClassType>
-    constexpr auto member_offset(MemberType ClassType::*member) -> ReturnType
+    constexpr auto memberOffset(MemberType ClassType::*member) -> ReturnType
     {
 #pragma GCC diagnostic ignored "-Wreturn-type"
         return static_cast<ReturnType>(reinterpret_cast<uint64_t>(

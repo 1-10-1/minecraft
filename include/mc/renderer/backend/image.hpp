@@ -25,7 +25,7 @@ namespace renderer::backend
 
         Image() = default;
 
-        Image(ResourceHandle handle,
+        Image(ResourceHandle const& handle,
               std::string const& name,
               Device const& device,
               Allocator const& allocator,
@@ -117,8 +117,14 @@ namespace renderer::backend
         ResourceAccessor(ResourceAccessor&&)            = default;
         ResourceAccessor& operator=(ResourceAccessor&&) = default;
 
-        ResourceAccessor(ResourceAccessor const&)            = delete;
-        ResourceAccessor& operator=(ResourceAccessor const&) = delete;
+        ResourceAccessor(ResourceAccessor const& rhs) : ResourceAccessorBase<Image>(rhs) {};
+
+        ResourceAccessor& operator=(ResourceAccessor const& rhs)
+        {
+            ResourceAccessorBase<Image>::operator=(rhs);
+
+            return *this;
+        };
 
         [[nodiscard]] operator bool() const { return get().imageHandle; }
 
