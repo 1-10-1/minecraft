@@ -12,8 +12,6 @@
 #include <vulkan/vulkan_core.h>
 #include <vulkan/vulkan_structs.hpp>
 
-// FIXME(aether) the operator= overload does not function as expected with an empty rhs object
-
 namespace renderer::backend
 {
     class Image : public ResourceBase
@@ -101,6 +99,8 @@ namespace renderer::backend
         uint32_t mipLevels = 0;
 
         vk::Extent2D dimensions { 0, 0 };
+
+        std::string_view name {};
     };
 
     template<>

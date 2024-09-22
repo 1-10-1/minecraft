@@ -10,11 +10,9 @@
 
 namespace utils
 {
-    inline auto largeNumToHumanReadable(float num) -> std::string
+    constexpr auto largeNumToHumanReadable(float num) -> std::string
     {
-        std::array suffixes {
-            "", "thousand", "million", "billion", "trillion", "quadrillion", "quintillion"
-        };
+        std::array suffixes { "", "k", "m", "b", "t", "qa", "qi" };
 
         size_t i = 0;
 
@@ -24,11 +22,26 @@ namespace utils
             ++i;
         }
 
-        return std::format("{:.2f} {}", num, suffixes[i]);
+        return std::format("{:.1f}{}", num, suffixes[i]);
+    }
+
+    constexpr auto largeSizeToHumanReadable(float num) -> std::string
+    {
+        std::array suffixes { "b", "kb", "mb", "gb", "tb" };
+
+        size_t i = 0;
+
+        while (num >= 1024.0f && i < suffixes.size() - 1)
+        {
+            num /= 1024.0f;
+            ++i;
+        }
+
+        return std::format("{:.1f} {}", num, suffixes[i]);
     }
 
     template<typename SizeType = char>
-    inline auto readBytes(std::filesystem::path const& filepath) -> std::vector<SizeType>
+    auto readBytes(std::filesystem::path const& filepath) -> std::vector<SizeType>
     {
         std::ifstream file(filepath, std::ios::ate | std::ios::binary);
 

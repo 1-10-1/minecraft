@@ -220,7 +220,9 @@ namespace renderer::backend
         delete[] loaderInfo.vertexBuffer;
         delete[] loaderInfo.indexBuffer;
 
-        getSceneDimensions();
+        auto bbDimensions = BoundingBox::calcNodeHeirarchyBB(linearNodes);
+        dimensions        = std::get<BoundingBox::Dimensions>(bbDimensions);
+        aabb              = std::get<glm::mat4>(bbDimensions);
 
         createMaterialBuffer();
         setupDescriptors();

@@ -57,36 +57,6 @@ namespace renderer::backend
 #endif
     };
 
-    struct RunPinnedTaskLoopTask : enki::IPinnedTask
-    {
-        void Execute() override
-        {
-            while (task_scheduler->GetIsRunning() && execute)
-            {
-                task_scheduler->WaitForNewPinnedTasks();
-                task_scheduler->RunPinnedTasks();
-            }
-        }
-
-        enki::TaskScheduler* task_scheduler;
-        bool execute = true;
-    };
-
-    struct AsynchronousLoadTask : enki::IPinnedTask
-    {
-        void Execute() override
-        {
-            while (execute)
-            {
-                async_loader->update();
-            }
-        }
-
-        AsynchronousLoader* async_loader;
-        enki::TaskScheduler* task_scheduler;
-        bool execute = true;
-    };
-
     class RendererBackend
     {
     public:
@@ -151,10 +121,6 @@ namespace renderer::backend
         ResourceManager<GPUBuffer> m_buffers;
         ResourceManager<Image> m_images;
         ResourceManager<Texture> m_textures;
-
-        AsynchronousLoader m_asyncLoader;
-        RunPinnedTaskLoopTask m_runPinnedTask;
-        AsynchronousLoadTask m_asyncLoadTask;
 
         ResourceAccessor<Image> m_drawImage {}, m_drawImageResolve {}, m_depthImage {};
         vk::DescriptorSet m_sceneDataDescriptors { nullptr };

@@ -302,8 +302,8 @@ namespace renderer::backend
     private:
         struct RefCountedResource
         {
-            Resource resource;
-            uint32_t refCount;
+            Resource resource {};
+            uint32_t refCount = 0;
 
             operator Resource&() { return resource; }
         };

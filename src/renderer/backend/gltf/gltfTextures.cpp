@@ -1,3 +1,4 @@
+#include <mc/renderer/backend/constants.hpp>
 #include <mc/renderer/backend/gltf/gltfTextures.hpp>
 #include <mc/renderer/backend/gltf/loader.hpp>
 

@@ -134,14 +134,8 @@ namespace renderer::backend
     {
         for (tinygltf::Animation& anim : gltfModel.animations)
         {
-            Animation animation { .name = anim.name };
+            Animation animation { .name = anim.name.empty() ? std::to_string(animations.size()) : anim.name };
 
-            if (anim.name.empty())
-            {
-                animation.name = std::to_string(animations.size());
-            }
-
-            // Samplers
             for (auto& samp : anim.samplers)
             {
                 AnimationSampler sampler {};

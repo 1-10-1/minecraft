@@ -1,8 +1,8 @@
+#include "mc/renderer/backend/constants.hpp"
 #include "mc/renderer/backend/renderer_backend.hpp"
 #include "mc/utils.hpp"
 #include <mc/renderer/backend/image.hpp>
 #include <mc/renderer/backend/info_structs.hpp>
-#include <mc/renderer/backend/render.hpp>
 #include <mc/renderer/backend/vk_checker.hpp>
 
 #include <glm/glm.hpp>
@@ -10,6 +10,7 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 #include <imgui_internal.h>
+#include <ranges>
 #include <tracy/Tracy.hpp>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
@@ -53,9 +54,9 @@ namespace renderer::backend
             }
         }
 
-        vk::CommandBuffer cmdBuf = m_commandManager.getMainCmdBuffer(m_currentFrame);
+        vk::CommandBuffer cmdBuf = m_commandManager.getCommandBuffer(m_currentFrame, 0, false);
 
-        cmdBuf.reset();
+        m_commandManager.resetPools(m_currentFrame);
 
         recordCommandBuffer(imageIndex);
 
@@ -106,7 +107,7 @@ namespace renderer::backend
         ++m_frameCount;
     }
 
-    void RendererBackend::drawGeometry(vk::CommandBuffer cmdBuf)
+    void RendererBackend::drawGeometry(vk::CommandBuffer primaryBuf)
     {
         vk::Extent2D imageExtent = m_drawImage.getDimensions();
 
@@ -132,9 +133,25 @@ namespace renderer::backend
                               .setRenderArea({ .extent = imageExtent })
                               .setColorAttachments(colorAttachment)
                               .setPDepthAttachment(&depthAttachment)
-                              .setLayerCount(1);
+                              .setLayerCount(1)
+                              .setFlags(vk::RenderingFlagBits::eContentsSecondaryCommandBuffers);
 
-        cmdBuf.beginRendering(renderInfo);
+        primaryBuf.beginRendering(renderInfo);
+
+        auto colorFormat = m_drawImage.getFormat();
+        auto inheritance = vk::StructureChain(vk::CommandBufferInheritanceInfo(),
+                                              vk::CommandBufferInheritanceRenderingInfo()
+                                                  .setColorAttachmentFormats(colorFormat)
+                                                  .setDepthAttachmentFormat(kDepthStencilFormat)
+                                                  .setRasterizationSamples(kMaxSamples));
+
+        auto beginInfo = vk::CommandBufferBeginInfo()
+                             .setFlags(vk::CommandBufferUsageFlagBits::eRenderPassContinue)
+                             .setPInheritanceInfo(&inheritance.get<vk::CommandBufferInheritanceInfo>());
+
+        auto scb = m_commandManager.getSecondaryCommandBuffer(m_currentFrame, 0);
+
+        scb.begin(beginInfo) >> ResultChecker();
 
         vk::Viewport viewport = {
             .x        = 0,
@@ -145,30 +162,30 @@ namespace renderer::backend
             .maxDepth = 1.f,
         };
 
-        cmdBuf.setViewport(0, viewport);
+        scb.setViewport(0, viewport);
 
         auto scissor = vk::Rect2D().setExtent(imageExtent).setOffset({ 0, 0 });
 
-        cmdBuf.setScissor(0, scissor);
+        scb.setScissor(0, scissor);
 
         m_stats.drawCount     = 0;
         m_stats.triangleCount = 0;
 
         if (m_scene.indices)
         {
-            cmdBuf.bindIndexBuffer(m_scene.indices, 0, vk::IndexType::eUint32);
+            scb.bindIndexBuffer(m_scene.indices, 0, vk::IndexType::eUint32);
         }
 
-        cmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
+        scb.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
 
-        cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-                                  m_pipelineLayout,
-                                  0,
-                                  {
-                                      m_sceneDataDescriptors,
-                                      m_scene.bindlessMaterialDescriptorSet,
-                                  },
-                                  {});
+        scb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                               m_pipelineLayout,
+                               0,
+                               {
+                                   m_sceneDataDescriptors,
+                                   m_scene.bindlessMaterialDescriptorSet,
+                               },
+                               {});
 
         GPUDrawPushConstants pushConstants {
             .vertexBuffer    = m_scene.vertexBufferAddress,
@@ -176,24 +193,28 @@ namespace renderer::backend
             .primitiveBuffer = m_scene.primitiveDataBufferAddress,
         };
 
-        cmdBuf.pushConstants(m_pipelineLayout,
-                             vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-                             0,
-                             sizeof(GPUDrawPushConstants),
-                             &pushConstants);
+        scb.pushConstants(m_pipelineLayout,
+                          vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                          0,
+                          sizeof(GPUDrawPushConstants),
+                          &pushConstants);
 
         {
             uint64_t numDraws = m_scene.drawIndirectCommands.size();
 
-            TracyVkZone(m_frameResources[m_currentFrame].tracyContext, cmdBuf, "Indirect draw call");
+            TracyVkZone(m_frameResources[m_currentFrame].tracyContext, primaryBuf, "Indirect draw call");
 
-            cmdBuf.drawIndexedIndirect(m_scene.drawIndirectBuffer,
-                                       0,
-                                       numDraws,
-                                       sizeof(decltype(m_scene.drawIndirectCommands)::value_type));
+            scb.drawIndexedIndirect(m_scene.drawIndirectBuffer,
+                                    0,
+                                    numDraws,
+                                    sizeof(decltype(m_scene.drawIndirectCommands)::value_type));
         }
 
-        cmdBuf.endRendering();
+        scb.end() >> ResultChecker();
+
+        primaryBuf.executeCommands(scb);
+
+        primaryBuf.endRendering();
     }
 
     void RendererBackend::recordCommandBuffer(uint32_t imageIndex)
@@ -202,62 +223,62 @@ namespace renderer::backend
         TracyVkCtx tracyCtx = m_frameResources[m_currentFrame].tracyContext;
 #endif
 
-        vk::CommandBuffer cmdBuf = m_commandManager.getMainCmdBuffer(m_currentFrame);
-
-        auto beginInfo =
-            vk::CommandBufferBeginInfo().setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-
-        cmdBuf.begin(beginInfo) >> ResultChecker();
+        vk::CommandBuffer primaryBuf = m_commandManager.getCommandBuffer(m_currentFrame, 0, true);
 
         {
-            TracyVkZone(tracyCtx, cmdBuf, "Command buffer recording");
+            TracyVkZone(tracyCtx, primaryBuf, "Command buffer recording");
 
             vk::Image swapchainImage = m_swapchain.getImages()[imageIndex];
             vk::Extent2D imageExtent = m_swapchain.getImageExtent();
 
-            Image::transition(
-                cmdBuf, m_depthImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthAttachmentOptimal);
+            Image::transition(primaryBuf,
+                              m_depthImage,
+                              vk::ImageLayout::eUndefined,
+                              vk::ImageLayout::eDepthAttachmentOptimal);
 
-            Image::transition(
-                cmdBuf, m_drawImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
+            Image::transition(primaryBuf,
+                              m_drawImage,
+                              vk::ImageLayout::eUndefined,
+                              vk::ImageLayout::eColorAttachmentOptimal);
 
             {
-                TracyVkZone(tracyCtx, cmdBuf, "Geometry render");
+                TracyVkZone(tracyCtx, primaryBuf, "Geometry render");
 
-                drawGeometry(cmdBuf);
+                drawGeometry(primaryBuf);
             }
 
             {
-                TracyVkZone(tracyCtx, cmdBuf, "Draw image copy");
+                TracyVkZone(tracyCtx, primaryBuf, "Draw image copy");
 
-                Image::transition(cmdBuf,
+                Image::transition(primaryBuf,
                                   m_drawImageResolve,
                                   vk::ImageLayout::eUndefined,
                                   vk::ImageLayout::eTransferSrcOptimal);
 
-                Image::transition(cmdBuf,
+                Image::transition(primaryBuf,
                                   swapchainImage,
                                   vk::ImageLayout::eUndefined,
                                   vk::ImageLayout::eTransferDstOptimal);
 
-                m_drawImageResolve.copyTo(cmdBuf, swapchainImage, imageExtent, m_drawImage.getDimensions());
+                m_drawImageResolve.copyTo(
+                    primaryBuf, swapchainImage, imageExtent, m_drawImage.getDimensions());
             }
 
             {
-                TracyVkZone(tracyCtx, cmdBuf, "ImGui render");
+                TracyVkZone(tracyCtx, primaryBuf, "ImGui render");
 
-                renderImgui(cmdBuf, *m_swapchain.getImageViews()[imageIndex]);
+                renderImgui(primaryBuf, *m_swapchain.getImageViews()[imageIndex]);
             }
 
-            Image::transition(cmdBuf,
+            Image::transition(primaryBuf,
                               swapchainImage,
                               vk::ImageLayout::eTransferDstOptimal,
                               vk::ImageLayout::ePresentSrcKHR);
         }
 
-        TracyVkCollect(tracyCtx, cmdBuf);
+        TracyVkCollect(tracyCtx, primaryBuf);
 
-        cmdBuf.end() >> ResultChecker();
+        primaryBuf.end() >> ResultChecker();
     }
 
     void RendererBackend::renderImgui(vk::CommandBuffer cmdBuf, vk::ImageView targetImage)
@@ -279,15 +300,6 @@ namespace renderer::backend
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        ImGuiWindowFlags window_flags = 0;
-        window_flags |= ImGuiWindowFlags_NoScrollbar;
-        window_flags |= ImGuiWindowFlags_NoMove;
-        window_flags |= ImGuiWindowFlags_NoResize;
-        window_flags |= ImGuiWindowFlags_NoCollapse;
-        window_flags |= ImGuiWindowFlags_NoNav;
-        window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus;
-        window_flags |= ImGuiWindowFlags_NoTitleBar;
-
         auto colorAttachment = vk::RenderingAttachmentInfo()
                                    .setImageView(targetImage)
                                    .setImageLayout(vk::ImageLayout::eGeneral)
@@ -303,12 +315,22 @@ namespace renderer::backend
 
         float windowPadding = 10.0f;
 
+        ImVec2 prevWindowPos, prevWindowSize;
+
         {
             ImGui::SetNextWindowPos(
                 ImVec2(windowPadding, windowPadding), ImGuiCond_Always, ImVec2(0.0f, 0.0f));
             ImGui::SetNextWindowSize({});
 
-            ImGui::Begin("Statistics", nullptr, window_flags);
+            ImGui::Begin("Statistics",
+                         nullptr,
+                         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+                             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus |
+                             ImGuiWindowFlags_NoTitleBar);
+
+            // Get the current window's position and size
+            prevWindowPos  = ImGui::GetWindowPos();
+            prevWindowSize = ImGui::GetWindowSize();
 
             ImGui::TextColored(ImVec4(77.5f / 255, 255.f / 255, 125.f / 255, 1.f), "%.2f mspf", frametime);
             ImGui::SameLine();
@@ -324,18 +346,53 @@ namespace renderer::backend
                                m_surface.getVsync() ? "on" : "off");
 
             std::string humanReadableTriCount = utils::largeNumToHumanReadable(m_scene.triangleCount);
-            ImGui::Text("%s triangles %lu", humanReadableTriCount.data(), m_scene.triangleCount);
-            ImGui::Text("%lu draws", m_scene.drawIndirectCommands.size());
+            ImGui::TextColored(ImVec4(147.f / 255.f, 210.f / 255.f, 2.f / 255.f, 1.f),
+                               "%s triangles",
+                               humanReadableTriCount.data());
+            ImGui::TextColored(ImVec4(147.f / 255.f, 210.f / 255.f, 2.f / 255.f, 1.f),
+                               "%lu draws",
+                               m_scene.drawIndirectCommands.size());
 
-            ImGui::Text(
-                "%lu buffers (%lu active)", m_buffers.getNumResources(), m_buffers.getNumActiveResources());
+            ImGui::TextColored(ImVec4(147.f / 255.f, 210.f / 255.f, 2.f / 255.f, 1.f),
+                               "%lu images (+ %lu inactive)",
+                               m_images.getNumActiveResources(),
+                               m_images.getNumResources() - m_images.getNumActiveResources());
 
-            ImGui::Text(
-                "%lu images (%lu active)", m_images.getNumResources(), m_images.getNumActiveResources());
+            ImGui::TextColored(ImVec4(147.f / 255.f, 210.f / 255.f, 2.f / 255.f, 1.f),
+                               "%lu textures (+ %lu inactive)",
+                               m_textures.getNumActiveResources(),
+                               m_textures.getNumResources() - m_textures.getNumActiveResources());
 
-            ImGui::Text("%lu textures (%lu active)",
-                        m_textures.getNumResources(),
-                        m_textures.getNumActiveResources());
+            ImGui::End();
+        }
+
+        {
+            ImGui::SetNextWindowPos(
+                ImVec2(prevWindowPos.x, prevWindowPos.y + prevWindowSize.y + windowPadding));
+
+            ImGui::Begin("Buffers",
+                         nullptr,
+                         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+                             ImGuiWindowFlags_NoCollapse);
+
+            // Get the current window's position and size
+            prevWindowPos  = ImGui::GetWindowPos();
+            prevWindowSize = ImGui::GetWindowSize();
+
+            ImGui::TextColored(ImVec4(0.f, 220.f / 255.f, 190.f / 255.f, 1.f),
+                               "%lu buffers (+ %lu inactive)",
+                               m_buffers.getNumActiveResources(),
+                               m_buffers.getNumResources() - m_buffers.getNumActiveResources());
+
+            for (auto const& [name, size] : m_buffers.getAllActiveBuffersInfo())
+            {
+                std::string sizeHumanReadable = utils::largeSizeToHumanReadable(size);
+
+                ImGui::TextColored(ImVec4(0.f, 170.f / 255.f, 220.f / 255.f, 1.f),
+                                   "%s (%s)",
+                                   name.data(),
+                                   sizeHumanReadable.data());
+            };
 
             ImGui::End();
         }

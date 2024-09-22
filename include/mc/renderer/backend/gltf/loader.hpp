@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../async_loader.hpp"
 #include "../buffer.hpp"
 #include "../command.hpp"
 #include "../descriptor.hpp"
@@ -29,18 +28,18 @@ namespace renderer::backend
               ResourceManager<GPUBuffer>& bufferManager,
               vk::DescriptorSetLayout materialDescriptorSetLayout,
               vk::ImageView dummyImage,
-              vk::Sampler dummySampler,
-              AsynchronousLoader& asyncLoader)
+              vk::Sampler dummySampler)
             : m_device { &device },
               m_cmdManager { &cmdManager },
               m_imageManager { &imageManager },
               m_bufferManager { &bufferManager },
-              m_asyncLoader { &asyncLoader },
               m_materialDescriptorSetLayout { materialDescriptorSetLayout },
               m_dummyImage { dummyImage },
               m_dummySampler { dummySampler }
         {
         }
+
+        void loadFromFile(std::string filename, float scale = 1.0f);
 
         Model(Model&&)            = default;
         Model& operator=(Model&&) = default;
@@ -75,12 +74,7 @@ namespace renderer::backend
         std::vector<Animation> animations;
         std::vector<std::string> extensions;
 
-        struct Dimensions
-        {
-            // what
-            glm::vec3 min = glm::vec3(std::numeric_limits<float>::max());
-            glm::vec3 max = glm::vec3(-std::numeric_limits<float>::max());
-        } dimensions;
+        BoundingBox::Dimensions dimensions;
 
         struct LoaderInfo
         {
@@ -92,6 +86,14 @@ namespace renderer::backend
 
         std::string filePath;
 
+        static constexpr std::array<std::string_view, 4> const supportedExtensions {
+            "KHR_texture_basisu",
+            "KHR_materials_pbrSpecularGlossiness",
+            "KHR_materials_unlit",
+            "KHR_materials_emissive_strength"
+        };
+
+    private:
         void loadNode(Node* parent,
                       tinygltf::Node const& node,
                       uint32_t nodeIndex,
@@ -110,9 +112,9 @@ namespace renderer::backend
 
         void loadTextures(tinygltf::Model& gltfModel);
 
-        vk::SamplerAddressMode getVkWrapMode(int32_t wrapMode);
+        auto getVkWrapMode(int32_t wrapMode) -> vk::SamplerAddressMode;
 
-        vk::Filter getVkFilterMode(int32_t filterMode);
+        auto getVkFilterMode(int32_t filterMode) -> vk::Filter;
 
         void loadTextureSamplers(tinygltf::Model& gltfModel);
 
@@ -120,13 +122,7 @@ namespace renderer::backend
 
         void loadAnimations(tinygltf::Model& gltfModel);
 
-        void loadFromFile(std::string filename, float scale = 1.0f);
-
-        void calculateBoundingBox(Node* node, Node* parent);
-
         void setupDescriptors();
-
-        void getSceneDimensions();
 
         void updateAnimation(uint32_t index, float time);
 
@@ -136,19 +132,10 @@ namespace renderer::backend
 
         void preparePrimitiveIndirectData(Node* node);
 
-        static constexpr std::array<std::string_view, 4> const supportedExtensions {
-            "KHR_texture_basisu",
-            "KHR_materials_pbrSpecularGlossiness",
-            "KHR_materials_unlit",
-            "KHR_materials_emissive_strength"
-        };
-
-    private:
         Device* m_device { nullptr };
         CommandManager* m_cmdManager { nullptr };
         ResourceManager<Image>* m_imageManager { nullptr };
         ResourceManager<GPUBuffer>* m_bufferManager { nullptr };
-        AsynchronousLoader* m_asyncLoader { nullptr };
 
         DescriptorAllocator m_materialDescriptorAllocator {};
         vk::DescriptorSetLayout m_materialDescriptorSetLayout { nullptr };

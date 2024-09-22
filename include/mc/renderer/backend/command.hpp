@@ -65,7 +65,7 @@ namespace renderer::backend
         CommandManager()  = default;
         ~CommandManager() = default;
 
-        explicit CommandManager(Device const& device);
+        explicit CommandManager(Device const& device, uint32_t numThreads);
 
         friend void swap(CommandManager& first, CommandManager& second) noexcept
         {
@@ -73,7 +73,13 @@ namespace renderer::backend
 
             swap(first.m_mainCommandPool, second.m_mainCommandPool);
             swap(first.m_transferCommandPool, second.m_transferCommandPool);
-            swap(first.m_mainCommandBuffers, second.m_mainCommandBuffers);
+            swap(first.commandPools, second.commandPools);
+            swap(first.primaryBuffers, second.primaryBuffers);
+            swap(first.secondaryBuffers, second.secondaryBuffers);
+            swap(first.usedBuffers, second.usedBuffers);
+            swap(first.usedSecondaryBuffers, second.usedSecondaryBuffers);
+            swap(first.numPoolsPerFrame, second.numPoolsPerFrame);
+            swap(first.numCommandBuffersPerThread, second.numCommandBuffersPerThread);
         }
 
         CommandManager(CommandManager&& other) noexcept : CommandManager() { swap(*this, other); };
@@ -83,11 +89,6 @@ namespace renderer::backend
             swap(*this, other);
 
             return *this;
-        }
-
-        [[nodiscard]] auto getMainCmdBuffer(size_t index) const -> vk::raii::CommandBuffer const&
-        {
-            return m_mainCommandBuffers[index];
         }
 
         [[nodiscard]] auto getMainCmdPool() const -> vk::raii::CommandPool const&
@@ -100,10 +101,27 @@ namespace renderer::backend
             return m_transferCommandPool;
         }
 
+        void resetPools(uint32_t frameIndex);
+
+        vk::CommandBuffer getCommandBuffer(uint32_t frame, uint32_t threadIndex, bool begin);
+        vk::CommandBuffer getSecondaryCommandBuffer(uint32_t frame, uint32_t threadIndex);
+
     private:
         vk::raii::CommandPool m_mainCommandPool { nullptr };
         vk::raii::CommandPool m_transferCommandPool { nullptr };
 
-        std::vector<vk::raii::CommandBuffer> m_mainCommandBuffers {};
+        uint32_t poolFromIndices(uint32_t frameIndex, uint32_t threadIndex)
+        {
+            return (frameIndex * numPoolsPerFrame) + threadIndex;
+        }
+
+        std::vector<vk::raii::CommandPool> commandPools;
+        std::vector<vk::raii::CommandBuffer> primaryBuffers;
+        std::vector<vk::raii::CommandBuffer> secondaryBuffers;
+        std::vector<uint8_t> usedBuffers;  // Track how many buffers were used per thread per frame.
+        std::vector<uint8_t> usedSecondaryBuffers;
+
+        uint32_t numPoolsPerFrame           = 0;
+        uint32_t numCommandBuffersPerThread = 3;
     };
 }  // namespace renderer::backend

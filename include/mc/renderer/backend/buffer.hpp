@@ -3,12 +3,18 @@
 #include "allocator.hpp"
 #include "resource.hpp"
 
+#include <ranges>
+#include <string_view>
+
 #if DEBUG
 #    include "vk_checker.hpp"
 #endif
 
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan_raii.hpp>
+
+namespace rn = std::ranges;
+namespace vi = std::ranges::views;
 
 namespace renderer::backend
 {
@@ -58,6 +64,8 @@ namespace renderer::backend
         {
 #if DEBUG
             vmaSetAllocationName(*allocator, allocation, name.data());
+
+            vmaGetAllocationInfo(*allocator, allocation, &allocInfo);
 
             auto func = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
                 device->getInstance().getProcAddr("vkSetDebugUtilsObjectNameEXT"));
@@ -117,12 +125,9 @@ namespace renderer::backend
         [[nodiscard]] auto getName() const -> std::string_view
         {
 #if DEBUG
-            VmaAllocationInfo allocInfo;
-            vmaGetAllocationInfo(*get().allocator, get().allocation, &allocInfo);
-
-            return allocInfo.pName;
+            return get().allocInfo.pName;
 #else
-            return "";
+            return {};
 #endif
         }
 
@@ -148,6 +153,28 @@ namespace renderer::backend
     public:
         ResourceManager(Device& device, Allocator& allocator)
             : m_extraConstructionParams { std::tie(device, allocator) } {};
+
+        auto getAllActiveBuffersInfo()
+        {
+            return m_resources | vi::enumerate |
+                   // Only active resources
+                   vi::filter(
+                       [this](auto const& indexed_res)
+                       {
+                           auto const& [index, res] = indexed_res;
+                           return !rn::contains(m_dormantIndices, index);
+                       }) |
+                   // Retrieve their name + size
+                   vi::transform(
+                       [](auto const& indexed_res) -> std::pair<std::string_view, uint64_t>
+                       {
+                           // works if I just return the name as a string_view
+                           // link error otherwise :/
+                           auto const& [index, res] = indexed_res;
+
+                           return { res.resource.allocInfo.pName, res.resource.allocInfo.size };
+                       });
+        }
 
         ResourceManager(ResourceManager&&)            = default;
         ResourceManager& operator=(ResourceManager&&) = delete;

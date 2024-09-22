@@ -74,10 +74,14 @@ namespace renderer::backend
         imageHandle = nullptr;
     }
 
-    void Image::setName(std::string const& name)
+    void Image::setName(std::string const& newName)
     {
 #if DEBUG
-        vmaSetAllocationName(*allocator, allocation, name.data());
+        vmaSetAllocationName(*allocator, allocation, newName.data());
+
+        VmaAllocationInfo allocInfo;
+        vmaGetAllocationInfo(*allocator, allocation, &allocInfo);
+        name = allocInfo.pName;
 
         auto func = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
             device->getInstance().getProcAddr("vkSetDebugUtilsObjectNameEXT"));
@@ -86,7 +90,7 @@ namespace renderer::backend
             .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .objectType   = VK_OBJECT_TYPE_IMAGE,
             .objectHandle = reinterpret_cast<uint64_t>(imageHandle),
-            .pObjectName  = name.data(),
+            .pObjectName  = newName.data(),
         };
 
         func(*device->get(), &info) >> ResultChecker();
@@ -136,11 +140,7 @@ namespace renderer::backend
     auto ResourceAccessor<Image>::getName() const -> std::string_view
     {
 #if DEBUG
-
-        VmaAllocationInfo allocInfo;
-        vmaGetAllocationInfo(*get().allocator, get().allocation, &allocInfo);
-
-        return allocInfo.pName;
+        return get().name;
 #else
         return "";
 #endif
