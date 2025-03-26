@@ -1,4 +1,3 @@
-#include <mc/formatters/glm_types.hpp>
 #include <mc/logger.hpp>
 #include <mc/window.hpp>
 

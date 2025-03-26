@@ -8,8 +8,6 @@
 
 #include <algorithm>
 #include <array>
-#include <expected>
-#include <print>
 #include <ranges>
 #include <stacktrace>
 #include <vector>
@@ -27,9 +25,9 @@ namespace
     using namespace renderer::backend;
 
     VKAPI_ATTR auto VKAPI_CALL
-    validationLayerCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-                            VkDebugUtilsMessageTypeFlagsEXT messageType,
-                            VkDebugUtilsMessengerCallbackDataEXT const* pCallbackData,
+    validationLayerCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+                            vk::DebugUtilsMessageTypeFlagsEXT messageType,
+                            vk::DebugUtilsMessengerCallbackDataEXT const* pCallbackData,
                             void* pUserData) -> VkBool32;
 
     constexpr std::array<vk::ValidationFeatureEnableEXT, 0> enabledValidationFeatures {};
@@ -47,8 +45,7 @@ namespace
 
         .messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
                        vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
-                       vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance |
-                       vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding,
+                       vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
 
         .pfnUserCallback = validationLayerCallback,
 
@@ -166,16 +163,16 @@ namespace
     using namespace renderer::backend;
 
     VKAPI_ATTR auto VKAPI_CALL
-    validationLayerCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-                            VkDebugUtilsMessageTypeFlagsEXT messageType,
-                            VkDebugUtilsMessengerCallbackDataEXT const* pCallbackData,
+    validationLayerCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+                            vk::DebugUtilsMessageTypeFlagsEXT messageType,
+                            vk::DebugUtilsMessengerCallbackDataEXT const* pCallbackData,
                             void* pUserData) -> VkBool32
     {
         ZoneScopedN("Validation layer callback");
 
         std::string_view message = pCallbackData->pMessage;
 
-        if (messageSeverity < VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT ||
+        if (messageSeverity < vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning ||
             message.ends_with("not consumed by vertex shader."))  // TODO(aether)
         {
             return VK_FALSE;
@@ -183,21 +180,18 @@ namespace
 
         // [[maybe_unused]] RendererBackend* renderer { static_cast<RendererBackend*>(pUserData) };
 
-        std::string type;
+        std::string_view type = "Unknown";
 
-        switch (messageType)
+        for (auto& pair : std::to_array<std::pair<vk::DebugUtilsMessageTypeFlagBitsEXT, std::string_view>>({
+                 { vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral,     "General"     },
+                 { vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation,  "Validation"  },
+                 { vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance, "Performance" }
+        }))
         {
-            case (VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT):
-                type = "General";
-                break;
-            case (VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT):
-                type = "Validation";
-                break;
-            case (VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT):
-                type = "Performance";
-                break;
-            default:
-                type = "Unknown";
+            if (messageType == pair.first)
+            {
+                type = pair.second;
+            }
         }
 
         auto stacktrace = std::stacktrace::current();
@@ -220,16 +214,13 @@ namespace
 
         spdlog::source_loc location(srcFile.data(), srcLine, srcFunc.data());
 
-        switch (messageSeverity)
+        if (messageSeverity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning)
         {
-            case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-                logger::logAt<logger::level::warn>(location, "({}) {}", type, pCallbackData->pMessage);
-                break;
-            case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-                logger::logAt<logger::level::err>(location, "({}) {}", type, pCallbackData->pMessage);
-                break;
-            default:
-                return VK_FALSE;
+            logger::logAt<logger::level::warn>(location, "({}) {}", type, pCallbackData->pMessage);
+        }
+        else if (messageSeverity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eError)
+        {
+            logger::logAt<logger::level::err>(location, "({}) {}", type, pCallbackData->pMessage);
         }
 
         return VK_FALSE;

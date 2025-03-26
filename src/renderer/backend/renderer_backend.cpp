@@ -18,7 +18,6 @@
 
 #include <chrono>
 #include <filesystem>
-#include <print>
 
 #include <glm/ext.hpp>
 #include <glslang/Public/ShaderLang.h>
